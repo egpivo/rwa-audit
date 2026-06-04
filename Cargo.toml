@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/rwa-audit"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["Joseph Wang"]

@@ -1,0 +1,12 @@
+asset_name,symbol,holder_count,top10_concentration_pct,top1_concentration_pct,data_as_of,data_source
+Franklin Templeton BENJI (FOBXX),BENJI,N/A,N/A,N/A,2026-06-02,Polygon - data not available
+Ondo OUSG,OUSG,50,93.3,30.81,2026-06-02,Ethplorer freekey API
+Ondo USDY,USDY,913,96.49,37.07,2026-06-02,Ethplorer freekey API
+BlackRock BUIDL,BUIDL,59,82.78,30.4,2026-06-02,Ethplorer freekey API
+Superstate USTB,USTB,78,85.26,19.58,2026-06-02,Ethplorer freekey API
+Paxos Gold,PAXG,89550,34.66,20.37,2026-06-02,Ethplorer freekey API
+Tether Gold,XAUT,53929,54.62,13.41,2026-06-02,Ethplorer freekey API
+Maple Finance MPL,MPL,8486,96.96,92.39,2026-06-02,Ethplorer freekey API
+TrueFi TRU,TRU,15911,60.77,19.24,2026-06-02,Ethplorer freekey API
+Backed bIB01,bIB01,24,100.0,99.87,2026-06-02,Ethplorer freekey API
+Backed bCSPX,bCSPX,76,99.82,99.61,2026-06-02,Ethplorer freekey API
