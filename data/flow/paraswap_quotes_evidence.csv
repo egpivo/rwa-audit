@@ -1,0 +1,7 @@
+checkpoint_date,symbol,amount_usd,route_found,notes
+2026-03-10,PAXG,1000,yes,weekly checkpoint (article evidence)
+2026-03-10,PAXG,10000,yes,weekly checkpoint (article evidence)
+2026-03-10,PAXG,100000,yes,weekly checkpoint (article evidence)
+2026-03-10,USDY,1000,yes,weekly checkpoint (article evidence)
+2026-03-10,USDY,10000,yes,weekly checkpoint (article evidence)
+2026-03-10,USDY,100000,no,weekly checkpoint — no route at $100k (article evidence)

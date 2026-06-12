@@ -1,0 +1,32 @@
+[
+  {
+    "symbol": "PAXG",
+    "panel_start": "2026-03-10",
+    "panel_end": "2026-06-08",
+    "total_days": 91,
+    "active_volume_days": 91,
+    "pool_count_listed": 25,
+    "median_daily_volume_usd": 9330627.772377022,
+    "median_top_pool_volume_share": 0.4742613881217102,
+    "days_top_share_at_or_above_99pct": 0,
+    "volume_cv": 0.6165516737901051,
+    "volume_spike_ratio": 5.284962507656423,
+    "corr_gold_z_vs_routing_dispersion_z": 0.22335284870239178,
+    "corr_volume_z_vs_top_share_z": -0.24159802910803035
+  },
+  {
+    "symbol": "USDY",
+    "panel_start": "2026-03-10",
+    "panel_end": "2026-06-08",
+    "total_days": 91,
+    "active_volume_days": 89,
+    "pool_count_listed": 23,
+    "median_daily_volume_usd": 1672.273883409254,
+    "median_top_pool_volume_share": 1.0,
+    "days_top_share_at_or_above_99pct": 58,
+    "volume_cv": 1.6831430394695246,
+    "volume_spike_ratio": 28.744472160486684,
+    "corr_gold_z_vs_routing_dispersion_z": null,
+    "corr_volume_z_vs_top_share_z": null
+  }
+]

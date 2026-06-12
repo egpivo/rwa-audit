@@ -18,6 +18,18 @@ path = "src/bin/collect.rs"
 name = "rwa-activity"
 path = "src/bin/activity.rs"
 
+[[bin]]
+name = "rwa-flow-panel"
+path = "src/bin/flow_panel.rs"
+
+[[bin]]
+name = "rwa-flow-quotes"
+path = "src/bin/flow_quotes.rs"
+
+[[bin]]
+name = "rwa-flow-tx"
+path = "src/bin/flow_tx.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }

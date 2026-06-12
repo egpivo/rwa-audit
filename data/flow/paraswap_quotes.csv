@@ -1,0 +1,7 @@
+checkpoint_date,symbol,src_token,dest_token,amount_usd,route_found,dest_amount_usdc,route_summary,error_message,source
+2026-06-12,PAXG,0x45804880de22913dafe09f4980848ece6ecbaf78,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,1000,true,1005.041315,uniswapv3 → CurveV1StableNg,,ParaSwap API v5 live quote
+2026-06-12,PAXG,0x45804880de22913dafe09f4980848ece6ecbaf78,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,10000,true,10031.778531,uniswapv3,,ParaSwap API v5 live quote
+2026-06-12,PAXG,0x45804880de22913dafe09f4980848ece6ecbaf78,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,100000,true,100193.751905,uniswapv3,,ParaSwap API v5 live quote
+2026-06-12,USDY,0x96f6ef951840721adbf46ac996b59e0235cb985c,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,1000,true,1137.289273,uniswapv3 → CurveV1StableNg,,ParaSwap API v5 live quote
+2026-06-12,USDY,0x96f6ef951840721adbf46ac996b59e0235cb985c,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,10000,true,11232.49376,uniswapv3 → CurveV1StableNg,,ParaSwap API v5 live quote
+2026-06-12,USDY,0x96f6ef951840721adbf46ac996b59e0235cb985c,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,100000,false,,,ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT,ParaSwap API v5 live quote
