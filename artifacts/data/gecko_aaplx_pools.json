@@ -1,0 +1,8 @@
+{
+  "symbol": "AAPLx",
+  "pool_count": 18,
+  "total_tvl_usd": 124062.35,
+  "total_24h_vol_usd": 34771.14,
+  "top_pool_vol_share": null,
+  "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana"
+}

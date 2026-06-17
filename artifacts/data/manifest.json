@@ -1,0 +1,95 @@
+{
+  "article": "Part III — Where RWA Exchange Risk Actually Sits",
+  "post_url": "https://egpivo.github.io/2026/06/21/where-rwa-exchange-risk-actually-sits.html",
+  "frozen_at": "2026-06-17T06:55:42.914884+00:00",
+  "panel_date": "2026-06-12",
+  "claims": [
+    {
+      "id": "platform_transfer_apr_2026",
+      "label": "RWA.xyz platform monthly transfer ~$1.03B (April 2026)",
+      "value_display": "$1.03B",
+      "value_usd": 1030000000.0,
+      "as_of": "2026-04-20",
+      "evidence_file": "artifacts/data/rwa_xyz_platform_transfer_snapshots.json",
+      "source_url": "https://app.rwa-xyz.com/platforms/xstocks",
+      "caveat": "Peer-to-peer on-chain transfers; excludes mint/burn."
+    },
+    {
+      "id": "platform_transfer_jun_2026",
+      "label": "RWA.xyz platform monthly transfer ~$1.60B (June 2026)",
+      "value_display": "$1.60B",
+      "value_usd": 1600000000.0,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/rwa_xyz_platform_transfer_snapshots.json",
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "caveat": "Peer-to-peer on-chain transfers; excludes mint/burn."
+    },
+    {
+      "id": "bridged_value_2026_06_11",
+      "label": "Bridged / distributed value ~$764M",
+      "value_display": "$764M",
+      "value_usd": 763761027.47,
+      "as_of": "2026-06-11",
+      "evidence_file": "artifacts/data/rwa-token-timeseries-export-1781314094816.csv",
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "caveat": "CSV export row sum; not transfer flow."
+    },
+    {
+      "id": "aaplx_pool_tvl",
+      "label": "AAPLx Solana pool TVL ~$124k",
+      "value_display": "$124k",
+      "value_usd": 124062.35,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/gecko_aaplx_pools.json",
+      "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana",
+      "caveat": "GeckoTerminal Solana public pools aggregate."
+    },
+    {
+      "id": "aaplx_pool_vol_24h",
+      "label": "AAPLx Solana 24h volume ~$35k",
+      "value_display": "$35k",
+      "value_usd": 34771.14,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/gecko_aaplx_pools.json",
+      "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana",
+      "caveat": "GeckoTerminal Solana public pools aggregate."
+    },
+    {
+      "id": "jupiter_aaplx_100k_impact",
+      "label": "Jupiter AAPLx @ $100k USDC price impact",
+      "value_display": "68%",
+      "value_usd": null,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/jupiter_quote_aaplx_100k.json",
+      "source_url": "https://lite-api.jup.ag/swap/v1/quote?inputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp&amount=100000000000&slippageBps=100",
+      "caveat": "Quote-only; publish fixture or live API at freeze time."
+    },
+    {
+      "id": "spyx_pool_vol_24h_fig4",
+      "label": "Fig. 4 — SPYx 24h pool volume",
+      "value_display": "$7.1M",
+      "value_usd": 7102758.23,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/gecko_spyx_pools.json",
+      "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=SPYx&network=solana",
+      "caveat": "Fig. 4 input; not in prose body."
+    },
+    {
+      "id": "tslax_pool_vol_24h_fig4",
+      "label": "Fig. 4 — TSLAx 24h pool volume",
+      "value_display": "$3.4M",
+      "value_usd": 3358518.82,
+      "as_of": "2026-06-12",
+      "evidence_file": "artifacts/data/gecko_tslax_pools.json",
+      "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=TSLAx&network=solana",
+      "caveat": "Fig. 4 input; not in prose body."
+    }
+  ],
+  "do_not_claim": [
+    "Platform transfer ≠ CEX trading volume",
+    "Bridged value ≠ transfer volume",
+    "Jupiter quote ≠ executed trade or exit capacity",
+    "Do not publish rwa_xyz monthly_interpolated extrapolation rows",
+    "Do not use exclude_from_interpolation suspect headline ($21.9M)"
+  ]
+}

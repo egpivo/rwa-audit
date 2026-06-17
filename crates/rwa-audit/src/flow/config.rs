@@ -15,6 +15,8 @@ pub const MAX_POOLS_PER_TOKEN: usize = 25;
 pub const PARASWAP_SLEEP_MS: u64 = 1_000;
 
 pub const MIN_POOL_VOLUME_USD: f64 = 100.0;
+/// Solana pool-search aggregates exclude pools above this TVL (mis-tagged outliers).
+pub const OUTLIER_TVL_USD: f64 = 50_000_000.0;
 
 pub struct PanelToken {
     pub symbol: &'static str,
@@ -39,6 +41,12 @@ pub const PANEL_TOKENS: &[PanelToken] = &[
 ];
 
 pub const QUOTE_USD_SIZES: &[u64] = &[1_000, 10_000, 100_000];
+
+pub const JUPITER_QUOTE_BASE: &str = "https://lite-api.jup.ag/swap/v1/quote";
+pub const USDC_SOLANA: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+pub const AAPLX_SOLANA: &str = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp";
+pub const JUPITER_QUOTE_USD: u64 = 100_000;
+pub const JUPITER_SLIPPAGE_BPS: u32 = 100;
 
 pub fn panel_start_date() -> NaiveDate {
     NaiveDate::parse_from_str(PANEL_START, "%Y-%m-%d").expect("panel start")

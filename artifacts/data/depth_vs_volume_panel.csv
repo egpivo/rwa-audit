@@ -1,0 +1,20 @@
+date,asset_or_example,venue_or_surface,metric_type,metric_value,unit,quote_size_usd,source_url,accessed_date,confidence,caveat
+2026-06-09,PAXG,dex_amm_pool,pool_tvl_total,$46.56M,USD,,proof-first-writing/projects/interface-mediated-finance/figures/data/rwa_part_ii_pool_surface.csv,2026-06-12,high,GeckoTerminal-observed public pools; Part II sprint
+2026-06-09,PAXG,dex_amm_pool,volume_24h_total,$4.42M,USD,,proof-first-writing/projects/interface-mediated-finance/figures/data/rwa_part_ii_pool_surface.csv,2026-06-12,high,Not CEX volume
+2026-06-09,USDY,dex_amm_pool,pool_tvl_total,$157.43k,USD,,proof-first-writing/projects/interface-mediated-finance/figures/data/rwa_part_ii_pool_surface.csv,2026-06-12,high,GeckoTerminal-observed public pools; Part II sprint
+2026-06-09,USDY,dex_amm_pool,volume_24h_total,$2.13k,USD,,proof-first-writing/projects/interface-mediated-finance/figures/data/rwa_part_ii_pool_surface.csv,2026-06-12,high,Not CEX volume
+2026-03-10..2026-06-08,PAXG,aggregator_route,quote_success,1,boolean,10000,proof-first-writing/projects/interface-mediated-finance/,2026-06-12,high,Part II weekly ParaSwap checkpoints
+2026-03-10..2026-06-08,PAXG,aggregator_route,quote_success,1,boolean,100000,proof-first-writing/projects/interface-mediated-finance/,2026-06-12,high,Quote test not executed trade
+2026-03-10..2026-06-08,USDY,aggregator_route,quote_success,1,boolean,10000,proof-first-writing/projects/interface-mediated-finance/,2026-06-12,high,Quote test not executed trade
+2026-03-10..2026-06-08,USDY,aggregator_route,quote_success,0,boolean,100000,proof-first-writing/projects/interface-mediated-finance/,2026-06-12,high,Failed route ≠ no issuer redemption
+2026-06-12,AAPLx,cex_orderbook,orderbook_depth_1pct,not_collected,,,https://support.kraken.com/articles/xstocks-faq,2026-06-12,low,Kraken xStocks pair depth not pulled via public API in sprint
+2026-06-12,TSLAx,cex_orderbook,orderbook_depth_1pct,not_collected,,,https://support.kraken.com/articles/xstocks-faq,2026-06-12,low,Kraken xStocks pair depth not pulled via public API in sprint
+2026-06-12,SPYx,cex_orderbook,orderbook_depth_1pct,not_collected,,,https://support.kraken.com/articles/xstocks-faq,2026-06-12,low,Kraken xStocks pair depth not pulled via public API in sprint
+2026-06-12,PAXG,cex_platform_ledger,volume_24h,318663772,USD,,https://coinmarketcap.com/currencies/pax-gold/,2026-06-12,medium,Aggregator headline; may include derivatives venues
+2026-06-12,xStocks platform,platform_transfer_volume,monthly_transfer_volume,1600000000,USD,,https://app.rwa.xyz/platforms/xstocks,2026-06-12,high,RWA.xyz: on-chain holder-to-holder transfers in USD; excludes mints/burns; NOT CEX trading volume. USD value of onchain token transfers aggregated monthly. Peer-to-peer transfers between holders; excludes mints and burns.
+2026-06-12,AAPLx,dex_amm_pool,pool_tvl_total,124062.35,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana,2026-06-12,medium,Solana public pools n=18; outliers >$50000000 excluded
+2026-06-12,AAPLx,dex_amm_pool,volume_24h_total,34771.14,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana,2026-06-12,medium,Solana public pools n=18; outliers >$50000000 excluded
+2026-06-12,TSLAx,dex_amm_pool,pool_tvl_total,4009042.15,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=TSLAx&network=solana,2026-06-12,medium,Solana public pools n=20; outliers >$50000000 excluded
+2026-06-12,TSLAx,dex_amm_pool,volume_24h_total,3358518.82,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=TSLAx&network=solana,2026-06-12,medium,Solana public pools n=20; outliers >$50000000 excluded
+2026-06-12,SPYx,dex_amm_pool,pool_tvl_total,4593529.21,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=SPYx&network=solana,2026-06-12,medium,Solana public pools n=20; outliers >$50000000 excluded
+2026-06-12,SPYx,dex_amm_pool,volume_24h_total,7102758.23,USD,,https://api.geckoterminal.com/api/v2/search/pools?query=SPYx&network=solana,2026-06-12,medium,Solana public pools n=20; outliers >$50000000 excluded

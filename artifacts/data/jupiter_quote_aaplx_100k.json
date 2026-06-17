@@ -1,0 +1,27 @@
+{
+  "input_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "output_mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+  "input_symbol": "USDC",
+  "output_symbol": "AAPLx",
+  "input_amount_usd": 100000,
+  "input_amount_raw": 100000000000,
+  "slippage_bps": 100,
+  "price_impact_pct": 68.2,
+  "out_amount_raw": null,
+  "route_labels": [
+    "WhaleStreet",
+    "PancakeSwap",
+    "Raydium CLMM",
+    "Byreal"
+  ],
+  "source_url": "https://lite-api.jup.ag/swap/v1/quote?inputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp&amount=100000000000&slippageBps=100",
+  "raw_response": {
+    "inAmount": "100000000000",
+    "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "note": "Publish fixture from jupiter_xstocks_verification_memo (2026-06-14 quote pass)",
+    "outputMint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "priceImpactPct": "0.682",
+    "publish_impact_pct": 68.2,
+    "slippageBps": 100
+  }
+}

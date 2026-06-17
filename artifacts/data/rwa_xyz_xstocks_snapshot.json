@@ -1,0 +1,11 @@
+{
+  "platform": "xstocks",
+  "as_of": "2026-06-12",
+  "source_url": "https://app.rwa.xyz/platforms/xstocks",
+  "distributed_asset_value_usd": 2500000000,
+  "monthly_transfer_volume_usd": 1600000000,
+  "holders": 235729,
+  "monthly_active_addresses": 83770,
+  "rwa_count": 178,
+  "accessed_date": "2026-06-12"
+}

@@ -47,6 +47,10 @@ pub fn data_dir() -> PathBuf {
     repo_root().join("data")
 }
 
+pub fn artifacts_data_dir() -> PathBuf {
+    repo_root().join("artifacts/data")
+}
+
 pub fn ensure_dir(path: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(path)?;
     Ok(())

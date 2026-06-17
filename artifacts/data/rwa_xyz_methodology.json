@@ -1,0 +1,23 @@
+{
+  "monthly_transfer_volume": {
+    "metric_label": "Monthly Transfer Volume",
+    "slug": "monthly_transfer_volume",
+    "definition": "USD value of onchain token transfers aggregated monthly. Peer-to-peer transfers between holders; excludes mints and burns.",
+    "unit": "USD",
+    "category": "Onchain Transactions",
+    "is_trading_volume": false,
+    "includes_cex_internal": false,
+    "includes_mint_burn": false,
+    "source_url": "https://docs.rwa.xyz/methodology/metrics",
+    "catalog_url": "https://app.rwa.xyz/catalog",
+    "catalog_slug_url": "https://app.rwa.xyz/catalog/metrics/daily_transfer_volume_token",
+    "accessed_date": "2026-06-12"
+  },
+  "trailing_30_day_transfer_volume": {
+    "metric_label": "Trailing 30-Day Transfer Volume",
+    "slug": "trailing_30_day_transfer_volume",
+    "definition": "USD value of onchain token transfers over trailing 30 days",
+    "note": "xStocks platform dashboard may show 30d window labeled Monthly Transfer Volume — verify dashboard label vs slug",
+    "source_url": "https://app.rwa.xyz/catalog"
+  }
+}

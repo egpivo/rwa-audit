@@ -1,0 +1,188 @@
+{
+  "metric": "monthly_transfer_volume",
+  "definition_url": "https://docs.rwa.xyz/methodology/metrics",
+  "note": "Platform transfer snapshots from manual dashboard captures + RWA.xyz SSR trailing_30_day_transfer_volume lag fields. Not trading volume. Chart history requires login on RWA.xyz; full API needs RWA_API_KEY.",
+  "last_fetched": "2026-06-13",
+  "snapshots": [
+    {
+      "date": "2026-03-15",
+      "monthly_transfer_volume_usd": 562766846.53,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-13",
+      "confidence": "high",
+      "caveat": "RWA.xyz SSR trailing_30d_transfer_volume lag 90d; trailing 30-day on-chain transfer USD (excl. mint/burn). Approximate as-of date = accessed_date minus lag.",
+      "source_type": "rwa_ssr_trailing_30d_lag"
+    },
+    {
+      "date": "2026-04-20",
+      "monthly_transfer_volume_usd": 1030000000,
+      "source_url": "https://app.rwa-xyz.com/platforms/xstocks",
+      "accessed_date": "2026-04-20",
+      "confidence": "medium",
+      "caveat": "Secondary crawl snapshot; verify against RWA.xyz export when API available"
+    },
+    {
+      "date": "2026-05-14",
+      "monthly_transfer_volume_usd": 1170485714.6,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-13",
+      "confidence": "high",
+      "caveat": "RWA.xyz SSR trailing_30d_transfer_volume lag 30d; trailing 30-day on-chain transfer USD (excl. mint/burn). Approximate as-of date = accessed_date minus lag.",
+      "source_type": "rwa_ssr_trailing_30d_lag"
+    },
+    {
+      "date": "2026-06-06",
+      "monthly_transfer_volume_usd": 1545915638.51,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-13",
+      "confidence": "high",
+      "caveat": "RWA.xyz SSR trailing_30d_transfer_volume lag 7d; trailing 30-day on-chain transfer USD (excl. mint/burn). Approximate as-of date = accessed_date minus lag.",
+      "source_type": "rwa_ssr_trailing_30d_lag"
+    },
+    {
+      "date": "2026-06-10",
+      "monthly_transfer_volume_usd": 1480000000,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-10",
+      "confidence": "high",
+      "caveat": "Dashboard label Monthly Transfer Volume"
+    },
+    {
+      "date": "2026-06-12",
+      "monthly_transfer_volume_usd": 1600000000,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-12",
+      "confidence": "high",
+      "caveat": "Dashboard label Monthly Transfer Volume"
+    },
+    {
+      "date": "2026-06-13",
+      "monthly_transfer_volume_usd": 21918383.58,
+      "source_url": "https://app.rwa.xyz/platforms/xstocks",
+      "accessed_date": "2026-06-13",
+      "confidence": "low",
+      "caveat": "Dashboard headline Monthly Transfer Volume; likely partial-month or pipeline artifact vs trailing_30d $1.55B on same page. Not used for interpolation.",
+      "source_type": "rwa_ssr_headline_suspect",
+      "exclude_from_interpolation": true
+    }
+  ],
+  "monthly_interpolated": [
+    {
+      "date": "2025-06-01",
+      "monthly_transfer_volume_usd": 4545175.45,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-07-01",
+      "monthly_transfer_volume_usd": 7521559.91,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-08-01",
+      "monthly_transfer_volume_usd": 12657766.93,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-09-01",
+      "monthly_transfer_volume_usd": 21301307.92,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-10-01",
+      "monthly_transfer_volume_usd": 35250358.42,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-11-01",
+      "monthly_transfer_volume_usd": 59321580.43,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2025-12-01",
+      "monthly_transfer_volume_usd": 98168008.27,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2026-01-01",
+      "monthly_transfer_volume_usd": 165203466.26,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2026-02-01",
+      "monthly_transfer_volume_usd": 278015065.68,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2026-03-01",
+      "monthly_transfer_volume_usd": 444878871.12,
+      "confidence": "low",
+      "metric_name": "monthly_transfer_volume_extrapolated",
+      "caveat": "Log-linear extrapolation beyond earliest/latest anchor; illustrative only"
+    },
+    {
+      "date": "2026-04-01",
+      "monthly_transfer_volume_usd": 748670904.86,
+      "confidence": "medium",
+      "metric_name": "monthly_transfer_volume_interpolated",
+      "caveat": "Log-linear interpolation between RWA.xyz snapshot anchors"
+    },
+    {
+      "date": "2026-05-01",
+      "monthly_transfer_volume_usd": 1092164276.92,
+      "confidence": "medium",
+      "metric_name": "monthly_transfer_volume_interpolated",
+      "caveat": "Log-linear interpolation between RWA.xyz snapshot anchors"
+    },
+    {
+      "date": "2026-06-01",
+      "monthly_transfer_volume_usd": 1455193158.5,
+      "confidence": "medium",
+      "metric_name": "monthly_transfer_volume_interpolated",
+      "caveat": "Log-linear interpolation between RWA.xyz snapshot anchors"
+    }
+  ],
+  "anchor_dates": [
+    {
+      "date": "2026-03-15",
+      "usd": 562766846.53
+    },
+    {
+      "date": "2026-04-20",
+      "usd": 1030000000.0
+    },
+    {
+      "date": "2026-05-14",
+      "usd": 1170485714.6
+    },
+    {
+      "date": "2026-06-06",
+      "usd": 1545915638.51
+    },
+    {
+      "date": "2026-06-10",
+      "usd": 1480000000.0
+    },
+    {
+      "date": "2026-06-12",
+      "usd": 1600000000.0
+    }
+  ]
+}

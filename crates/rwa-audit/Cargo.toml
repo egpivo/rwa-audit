@@ -30,6 +30,10 @@ path = "src/bin/flow_quotes.rs"
 name = "rwa-flow-tx"
 path = "src/bin/flow_tx.rs"
 
+[[bin]]
+name = "rwa-exchange-freeze"
+path = "src/bin/exchange_freeze.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }

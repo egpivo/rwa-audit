@@ -1,0 +1,8 @@
+{
+  "symbol": "TSLAx",
+  "pool_count": 20,
+  "total_tvl_usd": 4009042.15,
+  "total_24h_vol_usd": 3358518.82,
+  "top_pool_vol_share": null,
+  "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=TSLAx&network=solana"
+}

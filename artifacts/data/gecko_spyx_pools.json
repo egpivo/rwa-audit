@@ -1,0 +1,8 @@
+{
+  "symbol": "SPYx",
+  "pool_count": 20,
+  "total_tvl_usd": 4593529.21,
+  "total_24h_vol_usd": 7102758.23,
+  "top_pool_vol_share": null,
+  "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=SPYx&network=solana"
+}

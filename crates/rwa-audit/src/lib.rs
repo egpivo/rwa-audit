@@ -1,3 +1,4 @@
+pub mod exchange;
 pub mod flow;
 pub mod activity;
 pub mod assets;
@@ -13,3 +14,4 @@ pub use collect::collect_all;
 pub use flow::panel::collect_flow_panel;
 pub use flow::paraswap::collect_paraswap_quotes;
 pub use flow::tx_recon::reconstruct_case_studies;
+pub use exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
