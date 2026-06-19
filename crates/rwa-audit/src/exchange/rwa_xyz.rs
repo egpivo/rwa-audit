@@ -1,10 +1,13 @@
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::exchange::config::{platform_seed_path, RWA_XSTOCKS_URL};
+
+pub const SEED_TRANSFER_FILENAME: &str = "rwa_xyz_platform_transfer_snapshots.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatformSnapshot {
@@ -30,30 +33,49 @@ pub struct PlatformSeedFile {
     pub snapshots: Vec<PlatformSnapshot>,
 }
 
-pub fn seed_path() -> std::path::PathBuf {
+pub fn seed_path() -> PathBuf {
     platform_seed_path()
 }
 
 pub fn load_seed() -> Result<PlatformSeedFile> {
-    let raw = fs::read_to_string(seed_path())?;
+    load_seed_from(&seed_path())
+}
+
+pub fn load_seed_from(path: &Path) -> Result<PlatformSeedFile> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("read RWA.xyz seed {}", path.display()))?;
     Ok(serde_json::from_str(&raw)?)
 }
 
-pub fn save_seed(seed: &PlatformSeedFile) -> Result<()> {
-    fs::write(seed_path(), serde_json::to_string_pretty(seed)? + "\n")?;
+pub fn save_seed_to(path: &Path, seed: &PlatformSeedFile) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_json::to_string_pretty(seed)? + "\n")
+        .with_context(|| format!("write RWA.xyz seed {}", path.display()))?;
     Ok(())
 }
 
-pub fn snapshot_for_date<'a>(seed: &'a PlatformSeedFile, date: &str) -> Option<&'a PlatformSnapshot> {
+pub fn save_seed(seed: &PlatformSeedFile) -> Result<()> {
+    save_seed_to(&seed_path(), seed)
+}
+
+pub fn snapshot_for_date<'a>(
+    seed: &'a PlatformSeedFile,
+    date: &str,
+) -> Option<&'a PlatformSnapshot> {
     seed.snapshots
         .iter()
         .filter(|s| !s.exclude_from_interpolation.unwrap_or(false))
-        .filter(|s| s.confidence != "low" || s.source_type.as_deref() != Some("rwa_ssr_headline_suspect"))
+        .filter(|s| {
+            s.confidence != "low" || s.source_type.as_deref() != Some("rwa_ssr_headline_suspect")
+        })
         .find(|s| s.date == date)
 }
 
-pub fn fetch_and_merge_seed(access_date: &str) -> Result<PlatformSeedFile> {
-    let mut seed = load_seed().unwrap_or(PlatformSeedFile {
+/// Fetch RWA.xyz SSR snapshots and persist merged seed to `save_path` only.
+pub fn fetch_and_merge_seed(access_date: &str, save_path: &Path) -> Result<PlatformSeedFile> {
+    let mut seed = load_seed_from(&seed_path()).unwrap_or(PlatformSeedFile {
         metric: "monthly_transfer_volume".into(),
         definition_url: "https://docs.rwa.xyz/methodology/metrics".into(),
         note: "Platform transfer snapshots; not trading volume.".into(),
@@ -78,22 +100,23 @@ pub fn fetch_and_merge_seed(access_date: &str) -> Result<PlatformSeedFile> {
         .unwrap_or(Value::Null);
 
     let mut scraped = lag_snapshots(access_date, &trailing);
-    if let Some(headline) = headline_snapshot(access_date, &page, trailing.get("val_7d").and_then(|v| v.as_f64())) {
+    if let Some(headline) = headline_snapshot(
+        access_date,
+        &page,
+        trailing.get("val_7d").and_then(|v| v.as_f64()),
+    ) {
         scraped.push(headline);
     }
 
     seed.snapshots = merge_snapshots(&seed.snapshots, &scraped);
     seed.last_fetched = Some(access_date.to_string());
-    save_seed(&seed)?;
+    save_seed_to(save_path, &seed)?;
     Ok(seed)
 }
 
 fn extract_next_data(html: &str) -> Result<String> {
     let marker = r#"<script id="__NEXT_DATA__" type="application/json">"#;
-    let start = html
-        .find(marker)
-        .context("missing __NEXT_DATA__")?
-        + marker.len();
+    let start = html.find(marker).context("missing __NEXT_DATA__")? + marker.len();
     let end = html[start..]
         .find("</script>")
         .context("unclosed __NEXT_DATA__")?
@@ -133,7 +156,11 @@ fn lag_snapshots(access_date: &str, trailing: &Value) -> Vec<PlatformSnapshot> {
     out
 }
 
-fn headline_snapshot(access_date: &str, page: &Value, trailing_7d: Option<f64>) -> Option<PlatformSnapshot> {
+fn headline_snapshot(
+    access_date: &str,
+    page: &Value,
+    trailing_7d: Option<f64>,
+) -> Option<PlatformSnapshot> {
     let aggregates = page["props"]["pageProps"]["aggregates"].as_array()?;
     let headline = aggregates
         .iter()
@@ -168,8 +195,12 @@ fn headline_snapshot(access_date: &str, page: &Value, trailing_7d: Option<f64>) 
     })
 }
 
-fn merge_snapshots(existing: &[PlatformSnapshot], new_rows: &[PlatformSnapshot]) -> Vec<PlatformSnapshot> {
-    let mut by_date: std::collections::BTreeMap<String, PlatformSnapshot> = std::collections::BTreeMap::new();
+fn merge_snapshots(
+    existing: &[PlatformSnapshot],
+    new_rows: &[PlatformSnapshot],
+) -> Vec<PlatformSnapshot> {
+    let mut by_date: std::collections::BTreeMap<String, PlatformSnapshot> =
+        std::collections::BTreeMap::new();
     let rank = |c: &str| match c {
         "high" => 3,
         "medium" => 2,

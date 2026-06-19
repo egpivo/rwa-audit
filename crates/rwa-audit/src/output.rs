@@ -82,20 +82,47 @@ pub fn write_quality_notes(dir: &Path, notes: &[QualityNote]) -> anyhow::Result<
     writeln!(f, "# RWA Data Quality Notes\n")?;
     writeln!(f, "Generated: {}\n", Utc::now().to_rfc3339())?;
     writeln!(f, "## Data Sources Used\n")?;
-    writeln!(f, "- **On-chain logs**: publicnode.com public RPC endpoints (no API key required)")?;
+    writeln!(
+        f,
+        "- **On-chain logs**: publicnode.com public RPC endpoints (no API key required)"
+    )?;
     writeln!(f, "  - Ethereum: https://ethereum.publicnode.com")?;
     writeln!(f, "  - Polygon: https://polygon.publicnode.com")?;
-    writeln!(f, "- **Token info and holder data**: Ethplorer API (freekey, Ethereum only)")?;
+    writeln!(
+        f,
+        "- **Token info and holder data**: Ethplorer API (freekey, Ethereum only)"
+    )?;
     writeln!(f, "- **Prices**: CoinGecko free API")?;
-    writeln!(f, "- **Contract addresses**: Etherscan / official issuer documentation\n")?;
+    writeln!(
+        f,
+        "- **Contract addresses**: Etherscan / official issuer documentation\n"
+    )?;
     writeln!(f, "## General Caveats\n")?;
-    writeln!(f, "- Transfer logs limited to last 6 months of on-chain history")?;
-    writeln!(f, "- publicnode RPC limits getLogs to 40,000 blocks per call; history fetched in chunks")?;
+    writeln!(
+        f,
+        "- Transfer logs limited to last 6 months of on-chain history"
+    )?;
+    writeln!(
+        f,
+        "- publicnode RPC limits getLogs to 40,000 blocks per call; history fetched in chunks"
+    )?;
     writeln!(f, "- USD approximations use CoinGecko spot prices at collection time; do not reflect official NAV")?;
-    writeln!(f, "- Permissioning status is based on public documentation, not live contract inspection")?;
-    writeln!(f, "- Ethplorer holder data may lag on-chain state by hours; free tier rate-limited")?;
-    writeln!(f, "- BENJI (Franklin Templeton) Polygon data only; the canonical record is on Stellar")?;
-    writeln!(f, "- MPL and TRU are governance tokens, not direct RWA instruments; included as proxies\n")?;
+    writeln!(
+        f,
+        "- Permissioning status is based on public documentation, not live contract inspection"
+    )?;
+    writeln!(
+        f,
+        "- Ethplorer holder data may lag on-chain state by hours; free tier rate-limited"
+    )?;
+    writeln!(
+        f,
+        "- BENJI (Franklin Templeton) Polygon data only; the canonical record is on Stellar"
+    )?;
+    writeln!(
+        f,
+        "- MPL and TRU are governance tokens, not direct RWA instruments; included as proxies\n"
+    )?;
     writeln!(f, "## Per-Asset Notes\n")?;
 
     for note in notes {
@@ -122,47 +149,101 @@ fn write_structural_notes(f: &mut File) -> anyhow::Result<()> {
     writeln!(f, "## Asset-Specific Structural Notes\n")?;
 
     writeln!(f, "### Franklin Templeton BENJI (FOBXX)")?;
-    writeln!(f, "- Primary blockchain record is on Stellar. The Polygon deployment is secondary.")?;
-    writeln!(f, "- Polygon contract may show limited activity relative to Stellar.")?;
-    writeln!(f, "- The fund is a SEC-registered money market mutual fund, not a DeFi protocol.\n")?;
+    writeln!(
+        f,
+        "- Primary blockchain record is on Stellar. The Polygon deployment is secondary."
+    )?;
+    writeln!(
+        f,
+        "- Polygon contract may show limited activity relative to Stellar."
+    )?;
+    writeln!(
+        f,
+        "- The fund is a SEC-registered money market mutual fund, not a DeFi protocol.\n"
+    )?;
 
     writeln!(f, "### Ondo OUSG")?;
     writeln!(f, "- Restricted to US institutional investors with KYC/AML. Very low transfer count is expected.")?;
-    writeln!(f, "- Official NAV updated daily; no continuous secondary market pricing.\n")?;
+    writeln!(
+        f,
+        "- Official NAV updated daily; no continuous secondary market pricing.\n"
+    )?;
 
     writeln!(f, "### Ondo USDY")?;
-    writeln!(f, "- Accessible to non-US investors. More liquid than OUSG.")?;
-    writeln!(f, "- Price appreciation model: NAV increases over time rather than rebasing.\n")?;
+    writeln!(
+        f,
+        "- Accessible to non-US investors. More liquid than OUSG."
+    )?;
+    writeln!(
+        f,
+        "- Price appreciation model: NAV increases over time rather than rebasing.\n"
+    )?;
 
     writeln!(f, "### BlackRock BUIDL")?;
-    writeln!(f, "- Whitelist-controlled; only approved institutional investors can transact.")?;
+    writeln!(
+        f,
+        "- Whitelist-controlled; only approved institutional investors can transact."
+    )?;
     writeln!(f, "- Available on multiple chains (Ethereum, Arbitrum, Optimism, Avalanche). This study covers Ethereum only.")?;
-    writeln!(f, "- As of early 2025, BUIDL was the largest tokenized treasury fund by AUM.\n")?;
+    writeln!(
+        f,
+        "- As of early 2025, BUIDL was the largest tokenized treasury fund by AUM.\n"
+    )?;
 
     writeln!(f, "### Superstate USTB")?;
-    writeln!(f, "- Uses a separate PermissionList contract to gate transfers.")?;
+    writeln!(
+        f,
+        "- Uses a separate PermissionList contract to gate transfers."
+    )?;
     writeln!(f, "- NAV oracle updates continuously (second-by-second).\n")?;
 
     writeln!(f, "### Paxos Gold (PAXG)")?;
-    writeln!(f, "- Most liquid tokenized gold on Ethereum with deep DEX activity.")?;
-    writeln!(f, "- 1:1 backed by LBMA gold bars; Paxos is the custodian.\n")?;
+    writeln!(
+        f,
+        "- Most liquid tokenized gold on Ethereum with deep DEX activity."
+    )?;
+    writeln!(
+        f,
+        "- 1:1 backed by LBMA gold bars; Paxos is the custodian.\n"
+    )?;
 
     writeln!(f, "### Tether Gold (XAUT)")?;
     writeln!(f, "- Issued by Tether; 1 XAUT = 1 troy oz on LBMA bars.")?;
     writeln!(f, "- Less DeFi integration than PAXG.\n")?;
 
     writeln!(f, "### Maple Finance MPL")?;
-    writeln!(f, "- Governance token, not a direct loan/credit instrument.")?;
-    writeln!(f, "- Protocol migration toward Syrup token (SYRUP) underway as of 2024.\n")?;
+    writeln!(
+        f,
+        "- Governance token, not a direct loan/credit instrument."
+    )?;
+    writeln!(
+        f,
+        "- Protocol migration toward Syrup token (SYRUP) underway as of 2024.\n"
+    )?;
 
     writeln!(f, "### TrueFi TRU")?;
-    writeln!(f, "- Governance/staking token for the TrueFi lending protocol.")?;
-    writeln!(f, "- TrueFi TVL has declined significantly since 2022 peak.\n")?;
+    writeln!(
+        f,
+        "- Governance/staking token for the TrueFi lending protocol."
+    )?;
+    writeln!(
+        f,
+        "- TrueFi TVL has declined significantly since 2022 peak.\n"
+    )?;
 
     writeln!(f, "### Backed bIB01 / bCSPX")?;
-    writeln!(f, "- Issued under Swiss DLT law; secondary transfers unrestricted.")?;
-    writeln!(f, "- Minting/redemption only through Backed platform with KYC.")?;
-    writeln!(f, "- Low trading volumes; primarily held by institutional DeFi protocols.\n")?;
+    writeln!(
+        f,
+        "- Issued under Swiss DLT law; secondary transfers unrestricted."
+    )?;
+    writeln!(
+        f,
+        "- Minting/redemption only through Backed platform with KYC."
+    )?;
+    writeln!(
+        f,
+        "- Low trading volumes; primarily held by institutional DeFi protocols.\n"
+    )?;
 
     Ok(())
 }

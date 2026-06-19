@@ -1,0 +1,108 @@
+version: 1
+assets:
+  - asset_name: Franklin Templeton BENJI (FOBXX)
+    symbol: BENJI
+    category: Tokenized Treasury/MMF
+    chain: Polygon
+    contract_address: "0x408a634b8a8f0de729b48574a3a7ec3fe820b00a"
+    decimals: 6
+    price_usd_approx: 1.0
+    permissioning: allowlist
+    notes: Franklin OnChain U.S. Government Money Fund; Polygon deployment; originally on Stellar
+
+  - asset_name: Ondo OUSG
+    symbol: OUSG
+    category: Tokenized Treasury/MMF
+    chain: Ethereum
+    contract_address: "0x1b19c19393e2d034d8ff31ff34c81252fcbbee92"
+    decimals: 18
+    permissioning: allowlist
+    notes: Ondo Short-Term U.S. Government Bond Fund; permissioned ERC-20; KYC required
+
+  - asset_name: Ondo USDY
+    symbol: USDY
+    category: Tokenized Treasury/MMF
+    chain: Ethereum
+    contract_address: "0x96F6eF951840721AdBF46Ac996b59E0235CB985C"
+    decimals: 18
+    coingecko_id: ondo-us-dollar-yield
+    permissioning: partial
+    notes: Ondo U.S. Dollar Yield; non-rebasing; accessible to non-US investors
+
+  - asset_name: BlackRock BUIDL
+    symbol: BUIDL
+    category: Tokenized Treasury/MMF
+    chain: Ethereum
+    contract_address: "0x7712c34205737192402172409a8F7ccef8aA2AEc"
+    decimals: 6
+    coingecko_id: blackrock-usd-institutional-digital-liquidity-fund
+    price_usd_approx: 1.0
+    permissioning: allowlist
+    notes: BlackRock USD Institutional Digital Liquidity Fund; permissioned
+
+  - asset_name: Superstate USTB
+    symbol: USTB
+    category: Tokenized Treasury/MMF
+    chain: Ethereum
+    contract_address: "0x43415eB6ff9DB7E26A15b704e7A3eDCe97d31C4e"
+    decimals: 6
+    permissioning: allowlist
+    notes: Superstate Short Duration US Government Securities Fund; permissioned
+
+  - asset_name: Paxos Gold
+    symbol: PAXG
+    category: Gold/Commodities
+    chain: Ethereum
+    contract_address: "0x45804880De22913dAFE09f4980848ECE6EcbAf78"
+    decimals: 18
+    coingecko_id: pax-gold
+    permissioning: open
+    notes: 1 PAXG = 1 troy oz gold; stored in Brinks vaults
+
+  - asset_name: Tether Gold
+    symbol: XAUT
+    category: Gold/Commodities
+    chain: Ethereum
+    contract_address: "0x68749665ff8d2d112fa859aa293f07a622782f38"
+    decimals: 6
+    coingecko_id: tether-gold
+    permissioning: open
+    notes: Each XAUT represents 1 troy oz of gold on LBMA good delivery bars
+
+  - asset_name: Maple Finance MPL
+    symbol: MPL
+    category: Private Credit
+    chain: Ethereum
+    contract_address: "0x33349B282065b0284d756F0577FB39c158F935e6"
+    decimals: 18
+    coingecko_id: maple
+    permissioning: open
+    notes: Maple Finance governance token; protocol facilitates institutional uncollateralized lending
+
+  - asset_name: TrueFi TRU
+    symbol: TRU
+    category: Private Credit
+    chain: Ethereum
+    contract_address: "0x4c19596f5aaff459fa38b0f7ed92f11ae6543784"
+    decimals: 8
+    coingecko_id: truefi
+    permissioning: open
+    notes: TrueFi governance/staking token; protocol for uncollateralized on-chain lending
+
+  - asset_name: Backed bIB01
+    symbol: bIB01
+    category: Tokenized Fund/ETF
+    chain: Ethereum
+    contract_address: "0xca30c93b02514f86d5c86a6e375e3a330b435fb5"
+    decimals: 18
+    permissioning: open
+    notes: Backed IB01 Treasury Bond 0-1yr; tracks iShares Treasury Bond 0-1yr ETF
+
+  - asset_name: Backed bCSPX
+    symbol: bCSPX
+    category: Tokenized Fund/ETF
+    chain: Ethereum
+    contract_address: "0x1e2c4fb7ede391d116e6b41cd0608260e8801d59"
+    decimals: 18
+    permissioning: open
+    notes: Backed CSPX Core S&P 500; tracks iShares Core S&P 500 UCITS ETF

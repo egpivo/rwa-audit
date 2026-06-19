@@ -5,8 +5,8 @@ use chrono::NaiveDate;
 
 use crate::config::ensure_dir;
 use crate::flow::config::{
-    flow_data_dir, panel_end_date, panel_start_date, PANEL_TOKENS, MIN_POOL_VOLUME_USD,
-    MAX_POOLS_PER_TOKEN,
+    flow_data_dir, panel_end_date, panel_start_date, MAX_POOLS_PER_TOKEN, MIN_POOL_VOLUME_USD,
+    PANEL_TOKENS,
 };
 use crate::flow::gecko::{GeckoClient, PoolMeta};
 use crate::flow::output::{
@@ -77,7 +77,8 @@ pub fn collect_flow_panel() -> Result<()> {
                     pool_volumes: Vec::new(),
                 });
                 agg.total_volume += bar.volume_usd;
-                agg.pool_volumes.push((pool.address.clone(), bar.volume_usd));
+                agg.pool_volumes
+                    .push((pool.address.clone(), bar.volume_usd));
             }
         }
 
@@ -93,10 +94,20 @@ pub fn collect_flow_panel() -> Result<()> {
             let agg = daily.get(date);
             let total = agg.map(|a| a.total_volume).unwrap_or(0.0);
             let _active_pool_count = agg
-                .map(|a| a.pool_volumes.iter().filter(|(_, v)| *v >= MIN_POOL_VOLUME_USD).count())
+                .map(|a| {
+                    a.pool_volumes
+                        .iter()
+                        .filter(|(_, v)| *v >= MIN_POOL_VOLUME_USD)
+                        .count()
+                })
                 .unwrap_or(0);
             let top_vol = agg
-                .and_then(|a| a.pool_volumes.iter().map(|(_, v)| *v).max_by(|a, b| a.partial_cmp(b).unwrap()))
+                .and_then(|a| {
+                    a.pool_volumes
+                        .iter()
+                        .map(|(_, v)| *v)
+                        .max_by(|a, b| a.partial_cmp(b).unwrap())
+                })
                 .unwrap_or(0.0);
             let top_share = if total > 0.0 { top_vol / total } else { 0.0 };
             let dispersion = 1.0 - top_share;
@@ -116,7 +127,12 @@ pub fn collect_flow_panel() -> Result<()> {
             let dispersion = raw_dispersions[i];
             let active_pool_count = daily
                 .get(date)
-                .map(|a| a.pool_volumes.iter().filter(|(_, v)| *v * 1.0 >= MIN_POOL_VOLUME_USD).count())
+                .map(|a| {
+                    a.pool_volumes
+                        .iter()
+                        .filter(|(_, v)| *v * 1.0 >= MIN_POOL_VOLUME_USD)
+                        .count()
+                })
                 .unwrap_or(0);
 
             panel_rows.push(PanelDailyRow {
@@ -139,7 +155,11 @@ pub fn collect_flow_panel() -> Result<()> {
         let median_vol = {
             let mut nz: Vec<f64> = raw_volumes.iter().copied().filter(|v| *v > 0.0).collect();
             nz.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            if nz.is_empty() { 0.0 } else { nz[nz.len() / 2] }
+            if nz.is_empty() {
+                0.0
+            } else {
+                nz[nz.len() / 2]
+            }
         };
         let median_top_share = {
             let mut s = raw_top_shares.clone();

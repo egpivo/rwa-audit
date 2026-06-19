@@ -1,8 +1,8 @@
 """
-RWA article figures — Zen blog style
-  figures/rwa_stack.png              — verification stack (Fig. 1)
-  figures/rwa_activity_surface.png   — volume vs active user scatter (Fig. 2)
-  figures/rwa_activity_intensity.png — intensity by visible participant (Fig. 3)
+RWA article figures — Zen blog style (legacy).
+
+Requires article/writing/rwa_activity_surface_dataset.csv or use plot_timeseries.py
+with data/rwa_activity_daily_30d.csv instead.
 """
 
 import csv
@@ -30,6 +30,7 @@ import matplotlib.patches as mpatches
 
 OUT = ROOT / "figures"
 DATASET = ROOT / "article" / "writing" / "rwa_activity_surface_dataset.csv"
+FALLBACK_DATASET = ROOT / "artifacts" / "data" / "rwa_activity_daily_30d.csv"
 os.makedirs(OUT, exist_ok=True)
 apply_font()
 

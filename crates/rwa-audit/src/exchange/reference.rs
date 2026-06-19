@@ -28,7 +28,10 @@ fn parse_metric_value(raw: &str) -> Result<f64> {
 fn panel_rows_for_date(path: &Path, date: &str) -> Result<Vec<csv::StringRecord>> {
     let mut rdr = ReaderBuilder::new().from_path(path)?;
     let headers = rdr.headers()?.clone();
-    let date_idx = headers.iter().position(|h| h == "date").context("date column")?;
+    let date_idx = headers
+        .iter()
+        .position(|h| h == "date")
+        .context("date column")?;
     let mut out = Vec::new();
     for rec in rdr.records() {
         let rec = rec?;
@@ -58,9 +61,8 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
     let mut tvl = None;
     let mut vol = None;
     let mut pool_count = None;
-    let mut source_url = format!(
-        "https://api.geckoterminal.com/api/v2/search/pools?query={symbol}&network=solana"
-    );
+    let mut source_url =
+        format!("https://api.geckoterminal.com/api/v2/search/pools?query={symbol}&network=solana");
 
     for rec in &rows {
         if rec.get(idx("asset_or_example")?).unwrap_or("") != symbol {
@@ -71,7 +73,10 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
         }
         let metric = rec.get(idx("metric_type")?).unwrap_or("");
         let value = parse_metric_value(rec.get(idx("metric_value")?).unwrap_or(""))?;
-        source_url = rec.get(idx("source_url")?).unwrap_or(&source_url).to_string();
+        source_url = rec
+            .get(idx("source_url")?)
+            .unwrap_or(&source_url)
+            .to_string();
         if let Some(caveat) = rec.get(idx("caveat")?) {
             if let Some(n) = caveat.split("n=").nth(1).and_then(|s| s.split(';').next()) {
                 pool_count = n.trim().parse().ok();

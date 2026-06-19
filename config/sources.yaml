@@ -1,0 +1,47 @@
+version: 1
+sources:
+  publicnode_rpc:
+    kind: rpc
+    ethereum: https://ethereum.publicnode.com
+    polygon: https://polygon.publicnode.com
+    env: []
+
+  coingecko:
+    kind: http
+    base_url: https://api.coingecko.com/api/v3
+    env: []
+
+  ethplorer:
+    kind: http
+    base_url: https://api.ethplorer.io
+    env:
+      - ETHPLORER_API_KEY  # defaults to freekey when unset
+
+  geckoterminal:
+    kind: http
+    base_url: https://api.geckoterminal.com/api/v2
+    env: []
+
+  paraswap:
+    kind: http
+    base_url: https://api.paraswap.io
+    env: []
+
+  jupiter:
+    kind: http
+    base_url: https://lite-api.jup.ag/swap/v1
+    env: []
+
+  yahoo_finance:
+    kind: http
+    base_url: https://query1.finance.yahoo.com
+    env: []
+
+  manual_import:
+    kind: file
+    base_path: artifacts/data
+    env: []
+
+cache:
+  enabled: true
+  root: cache/sources

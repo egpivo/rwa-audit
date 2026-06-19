@@ -39,9 +39,11 @@ pub fn fetch_aaplx_quote_100k() -> Result<JupiterQuoteEvidence> {
         .json()
         .context("jupiter quote json")?;
 
-    let mut price_impact = body
-        .get("priceImpactPct")
-        .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or_else(|| v.as_f64()));
+    let mut price_impact = body.get("priceImpactPct").and_then(|v| {
+        v.as_str()
+            .and_then(|s| s.parse().ok())
+            .or_else(|| v.as_f64())
+    });
     if let Some(p) = price_impact {
         if p.abs() < 2.0 {
             price_impact = Some(p * 100.0);
@@ -73,7 +75,9 @@ pub fn fetch_aaplx_quote_100k() -> Result<JupiterQuoteEvidence> {
         input_amount_raw,
         slippage_bps: JUPITER_SLIPPAGE_BPS,
         price_impact_pct: price_impact,
-        out_amount_raw: body.get("outAmount").and_then(|v| v.as_str().map(str::to_string)),
+        out_amount_raw: body
+            .get("outAmount")
+            .and_then(|v| v.as_str().map(str::to_string)),
         route_labels,
         source_url: url,
         raw_response: body,

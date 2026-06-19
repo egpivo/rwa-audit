@@ -1,0 +1,38 @@
+version: 1
+assets:
+  - symbol: BUIDL
+    asset_name: BlackRock BUIDL
+    chain: Ethereum
+    contract: "0x7712c34205737192402172409a8f7ccef8aa2aec"
+    decimals: 6
+    price_usd_approx: 1.0
+    include_in_figure: true
+
+  - symbol: USDY
+    asset_name: Ondo USDY
+    chain: Ethereum
+    contract: "0x96f6ef951840721adbf46ac996b59e0235cb985c"
+    decimals: 18
+    include_in_figure: true
+
+  - symbol: PAXG
+    asset_name: Paxos Gold
+    chain: Ethereum
+    contract: "0x45804880de22913dafe09f4980848ece6ecbaf78"
+    decimals: 18
+    include_in_figure: true
+
+  - symbol: XAUT
+    asset_name: Tether Gold
+    chain: Ethereum
+    contract: "0x68749665ff8d2d112fa859aa293f07a622782f38"
+    decimals: 6
+    include_in_figure: true
+
+  - symbol: BENJI
+    asset_name: Franklin Templeton BENJI (FOBXX)
+    chain: Polygon
+    contract: "0x408a634b8a8f0de729b48574a3a7ec3fe820b00a"
+    decimals: 18
+    price_usd_approx: 1.0
+    include_in_figure: false

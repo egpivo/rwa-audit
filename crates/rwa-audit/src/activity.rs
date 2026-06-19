@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet};
 use std::path::Path;
+
+use std::collections::{HashMap, HashSet};
 
 use chrono::{Duration, Utc};
 use csv::ReaderBuilder;
 
-use crate::assets::activity_assets;
+use crate::assets::activity_assets_from;
 use crate::client::{parse_hex_u64, token_amount, HttpClient, ACTIVITY_CHUNK_BLOCKS};
 use crate::config::{block_time_secs, data_dir, ensure_dir, rpc_for_chain};
 use crate::models::ActivityDailyRow;
@@ -15,15 +16,15 @@ struct DailyBucket {
     senders: HashSet<String>,
 }
 
-pub fn collect_activity_timeseries() -> anyhow::Result<()> {
+pub fn collect_activity_timeseries(assets_path: &Path) -> anyhow::Result<()> {
     let output_path = data_dir().join("rwa_activity_daily_30d.csv");
     ensure_dir(output_path.parent().unwrap())?;
 
     let implied_price = load_implied_prices(&data_dir().join("rwa_transfer_metrics.csv"))?;
-    let client = HttpClient::new()?;
+    let client = HttpClient::for_live()?;
     let mut rows = Vec::new();
 
-    for asset in activity_assets() {
+    for asset in activity_assets_from(assets_path)? {
         let rpc = rpc_for_chain(&asset.chain);
         let (latest_block, latest_ts) = client.get_latest_block_and_ts(rpc)?;
         let sec_per_block = block_time_secs(&asset.chain);
@@ -66,7 +67,8 @@ pub fn collect_activity_timeseries() -> anyhow::Result<()> {
             );
 
             let data = lg.get("data").and_then(|d| d.as_str()).unwrap_or("0x0");
-            let raw = u128::from_str_radix(data.strip_prefix("0x").unwrap_or(data), 16).unwrap_or(0);
+            let raw =
+                u128::from_str_radix(data.strip_prefix("0x").unwrap_or(data), 16).unwrap_or(0);
             let bucket = daily.entry(day).or_insert_with(|| DailyBucket {
                 volume_tokens: 0.0,
                 senders: HashSet::new(),
@@ -166,7 +168,8 @@ mod tests {
 
     #[test]
     fn load_implied_prices_missing_file_returns_empty() {
-        let prices = load_implied_prices(Path::new("/nonexistent/rwa_transfer_metrics.csv")).unwrap();
+        let prices =
+            load_implied_prices(Path::new("/nonexistent/rwa_transfer_metrics.csv")).unwrap();
         assert!(prices.is_empty());
     }
 

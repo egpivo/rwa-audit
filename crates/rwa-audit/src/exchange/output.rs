@@ -1,13 +1,15 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::Result;
-use serde::Serialize;
-
 use crate::exchange::bridged::BridgedValueSum;
 use crate::exchange::rwa_xyz::PlatformSnapshot;
 use crate::flow::gecko::SymbolPoolAggregate;
 use crate::flow::jupiter::JupiterQuoteEvidence;
+use crate::sources::{write_json_with_provenance, Provenance, SourceId};
+use anyhow::Result;
+use serde::Serialize;
+
+pub use crate::core::manifest::AuditManifest as ExchangeManifest;
 
 #[derive(Debug, Serialize)]
 pub struct DepthPanelRow {
@@ -24,31 +26,20 @@ pub struct DepthPanelRow {
     pub caveat: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ManifestClaim {
-    pub id: String,
-    pub label: String,
-    pub value_display: String,
-    pub value_usd: Option<f64>,
-    pub as_of: String,
-    pub evidence_file: String,
-    pub source_url: String,
-    pub caveat: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ExchangeManifest {
-    pub article: String,
-    pub post_url: String,
-    pub frozen_at: String,
-    pub panel_date: String,
-    pub claims: Vec<ManifestClaim>,
-    pub do_not_claim: Vec<String>,
-}
-
 pub fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     fs::write(path, serde_json::to_string_pretty(value)? + "\n")?;
     Ok(())
+}
+
+pub fn write_sourced_json(
+    path: &Path,
+    value: &impl Serialize,
+    source: SourceId,
+    request_url: &str,
+    live: bool,
+) -> Result<()> {
+    let provenance = Provenance::new(source, request_url, live);
+    write_json_with_provenance(path, value, provenance)
 }
 
 pub fn write_depth_panel(path: &Path, rows: &[DepthPanelRow]) -> Result<()> {
@@ -91,7 +82,8 @@ pub fn bridged_row(b: &BridgedValueSum, accessed: &str) -> DepthPanelRow {
         source_url: "https://app.rwa.xyz/platforms/xstocks".into(),
         accessed_date: accessed.into(),
         confidence: "high".into(),
-        caveat: "Sum of RWA.xyz CSV export Bridged Token Value (Dollar) row; not transfer flow.".into(),
+        caveat: "Sum of RWA.xyz CSV export Bridged Token Value (Dollar) row; not transfer flow."
+            .into(),
     }
 }
 
@@ -137,3 +129,6 @@ pub fn jupiter_row(q: &JupiterQuoteEvidence, accessed: &str) -> DepthPanelRow {
         caveat: "Jupiter lite-api quote only; not executed trade or exit capacity.".into(),
     }
 }
+
+// Re-export for callers that build claims inline.
+pub type ManifestClaim = crate::core::manifest::ManifestClaim;

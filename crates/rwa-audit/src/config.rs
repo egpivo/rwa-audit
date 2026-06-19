@@ -32,11 +32,19 @@ pub fn block_time_secs(chain: &str) -> u64 {
 }
 
 /// Resolve repo root from CARGO_MANIFEST_DIR (crates/rwa-audit) or current dir.
+/// Tests may override with `RWA_AUDIT_REPO_ROOT`.
 pub fn repo_root() -> PathBuf {
+    if let Ok(root) = std::env::var("RWA_AUDIT_REPO_ROOT") {
+        return PathBuf::from(root);
+    }
     if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
         let p = PathBuf::from(manifest);
         if p.ends_with("crates/rwa-audit") {
-            return p.parent().and_then(|p| p.parent()).unwrap_or(&p).to_path_buf();
+            return p
+                .parent()
+                .and_then(|p| p.parent())
+                .unwrap_or(&p)
+                .to_path_buf();
         }
         return p;
     }
@@ -49,6 +57,26 @@ pub fn data_dir() -> PathBuf {
 
 pub fn artifacts_data_dir() -> PathBuf {
     repo_root().join("artifacts/data")
+}
+
+pub fn audits_dir() -> PathBuf {
+    repo_root().join("artifacts/audits")
+}
+
+pub fn cache_dir() -> PathBuf {
+    repo_root().join("cache")
+}
+
+pub fn config_dir() -> PathBuf {
+    repo_root().join("config")
+}
+
+pub fn path_to_repo_relative(path: &Path) -> String {
+    let root = repo_root();
+    path.strip_prefix(&root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 pub fn ensure_dir(path: &Path) -> anyhow::Result<()> {
@@ -77,6 +105,13 @@ mod tests {
         let root = repo_root();
         assert!(root.join("Cargo.toml").exists());
         assert!(root.join("crates/rwa-audit").exists());
+    }
+
+    #[test]
+    fn cache_dir_under_repo_root() {
+        let root = repo_root();
+        assert!(cache_dir().starts_with(&root));
+        assert!(cache_dir().ends_with("cache"));
     }
 
     #[test]

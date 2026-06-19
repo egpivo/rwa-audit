@@ -46,7 +46,8 @@ impl GeckoClient {
         let mut pools = Vec::new();
         let mut page = 1u32;
         loop {
-            let path = format!("/networks/{PANEL_NETWORK}/tokens/{token_address}/pools?page={page}");
+            let path =
+                format!("/networks/{PANEL_NETWORK}/tokens/{token_address}/pools?page={page}");
             let body = self.get(&path)?;
             let batch = body
                 .get("data")
@@ -152,7 +153,10 @@ pub struct SymbolPoolAggregate {
     pub source_url: String,
 }
 
-pub fn fetch_solana_symbol_pool_aggregate(client: &Client, symbol: &str) -> Result<SymbolPoolAggregate> {
+pub fn fetch_solana_symbol_pool_aggregate(
+    client: &Client,
+    symbol: &str,
+) -> Result<SymbolPoolAggregate> {
     let path = format!("/search/pools?query={symbol}&network=solana");
     let url = format!("{GECKO_BASE}{path}");
     for attempt in 0..5u32 {
@@ -176,7 +180,11 @@ pub fn fetch_solana_symbol_pool_aggregate(client: &Client, symbol: &str) -> Resu
 pub fn aggregate_solana_search(symbol: &str, body: &Value, url: &str) -> SymbolPoolAggregate {
     use crate::flow::config::OUTLIER_TVL_USD;
 
-    let pools = body.get("data").and_then(|d| d.as_array()).cloned().unwrap_or_default();
+    let pools = body
+        .get("data")
+        .and_then(|d| d.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut filtered = Vec::new();
     for p in pools {
         let a = &p["attributes"];
@@ -199,7 +207,11 @@ pub fn aggregate_solana_search(symbol: &str, body: &Value, url: &str) -> SymbolP
     }
     let total_tvl: f64 = filtered.iter().map(|(t, _)| t).sum();
     let total_vol: f64 = filtered.iter().map(|(_, v)| v).sum();
-    let top_vol = filtered.iter().map(|(_, v)| v).copied().fold(0.0f64, f64::max);
+    let top_vol = filtered
+        .iter()
+        .map(|(_, v)| v)
+        .copied()
+        .fold(0.0f64, f64::max);
     SymbolPoolAggregate {
         symbol: symbol.to_string(),
         pool_count: filtered.len(),

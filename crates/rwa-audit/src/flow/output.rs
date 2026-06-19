@@ -110,7 +110,11 @@ pub fn write_panel_summary(dir: &Path, summaries: &[PanelSummary]) -> anyhow::Re
     for s in summaries {
         writeln!(f, "## {}\n", s.symbol)?;
         writeln!(f, "- Window: {} → {}", s.panel_start, s.panel_end)?;
-        writeln!(f, "- Active volume days: {}/{}", s.active_volume_days, s.total_days)?;
+        writeln!(
+            f,
+            "- Active volume days: {}/{}",
+            s.active_volume_days, s.total_days
+        )?;
         writeln!(f, "- Pools listed (GeckoTerminal): {}", s.pool_count_listed)?;
         writeln!(
             f,
@@ -162,7 +166,10 @@ pub fn write_tx_reconstructions(dir: &Path, rows: &[TxReconRow]) -> anyhow::Resu
     Ok(())
 }
 
-pub fn write_reference_gold(dir: &Path, rows: &[crate::flow::reference::GoldDaily]) -> anyhow::Result<()> {
+pub fn write_reference_gold(
+    dir: &Path,
+    rows: &[crate::flow::reference::GoldDaily],
+) -> anyhow::Result<()> {
     let path = dir.join("reference_gc.csv");
     let mut wtr = csv::Writer::from_path(&path)?;
     for r in rows {

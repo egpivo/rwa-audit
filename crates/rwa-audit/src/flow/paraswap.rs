@@ -6,7 +6,10 @@ use reqwest::blocking::Client;
 use serde_json::Value;
 
 use crate::config::ensure_dir;
-use crate::flow::config::{flow_data_dir, PanelToken, PANEL_TOKENS, PARASWAP_BASE, PARASWAP_SLEEP_MS, QUOTE_USD_SIZES, USDC};
+use crate::flow::config::{
+    flow_data_dir, PanelToken, PANEL_TOKENS, PARASWAP_BASE, PARASWAP_SLEEP_MS, QUOTE_USD_SIZES,
+    USDC,
+};
 use crate::flow::output::{write_paraswap_quotes, ParaswapQuoteRow};
 
 pub fn collect_paraswap_quotes() -> Result<()> {
@@ -43,10 +46,7 @@ pub fn collect_paraswap_quotes() -> Result<()> {
                 source: "ParaSwap API v5 live quote".into(),
             });
 
-            println!(
-                "  {} ${usd_size}: route_found={route_found}",
-                token.symbol
-            );
+            println!("  {} ${usd_size}: route_found={route_found}", token.symbol);
         }
     }
 
@@ -112,10 +112,5 @@ fn fetch_quote(
         })
         .unwrap_or_default();
 
-    Ok((
-        true,
-        dest_raw,
-        exchanges.join(" → "),
-        None,
-    ))
+    Ok((true, dest_raw, exchanges.join(" → "), None))
 }

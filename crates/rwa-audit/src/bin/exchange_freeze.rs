@@ -5,6 +5,7 @@ fn main() -> anyhow::Result<()> {
     let opts = ExchangeFreezeOptions {
         refresh_rwa_xyz: args.iter().any(|a| a == "--refresh-rwa"),
         live_apis: args.iter().any(|a| a == "--live"),
+        panel_date: None,
     };
     freeze_exchange_evidence(opts)
 }
