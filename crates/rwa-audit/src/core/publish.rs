@@ -214,8 +214,8 @@ impl PublishBundle for RegistryPublishBundle {
         let manifest = AuditManifest {
             audit_id: Some(self.id().into()),
             version: Some(crate::core::manifest::MANIFEST_VERSION.into()),
-            article: "Registry — If Everything Can Be Tokenized, What Should We Audit?".into(),
-            post_url: "https://egpivo.github.io/2026/06/07/if-everything-can-be-tokenized-what-should-we-audit.html".into(),
+            title: "Registry — If Everything Can Be Tokenized, What Should We Audit?".into(),
+            reference_url: "https://egpivo.github.io/2026/06/07/if-everything-can-be-tokenized-what-should-we-audit.html".into(),
             frozen_at,
             panel_date,
             methods: vec![AuditMethod::Registry, AuditMethod::Activity],

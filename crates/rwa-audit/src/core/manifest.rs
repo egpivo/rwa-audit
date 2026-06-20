@@ -45,9 +45,8 @@ pub struct AuditManifest {
     pub audit_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    /// Human-readable audit title (legacy field name: `article`).
-    pub article: String,
-    pub post_url: String,
+    pub title: String,
+    pub reference_url: String,
     pub frozen_at: String,
     pub panel_date: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -61,8 +60,8 @@ impl AuditManifest {
         Self {
             audit_id: Some(audit_id.into()),
             version: Some(MANIFEST_VERSION.into()),
-            article: EXCHANGE_AUDIT_TITLE.into(),
-            post_url:
+            title: EXCHANGE_AUDIT_TITLE.into(),
+            reference_url:
                 "https://egpivo.github.io/2026/06/21/where-rwa-exchange-risk-actually-sits.html"
                     .into(),
             frozen_at,
@@ -84,7 +83,7 @@ impl AuditManifest {
     }
 
     pub fn validate(&self) -> Result<()> {
-        anyhow::ensure!(!self.article.is_empty(), "article/title is required");
+        anyhow::ensure!(!self.title.is_empty(), "title is required");
         anyhow::ensure!(!self.frozen_at.is_empty(), "frozen_at is required");
         anyhow::ensure!(!self.claims.is_empty(), "at least one claim is required");
 
@@ -155,7 +154,7 @@ mod tests {
     #[test]
     fn exchange_template_has_exchange_method() {
         let m = AuditManifest::exchange_template("article3-xstocks-2026-06-12", "t".into());
-        assert_eq!(m.article, EXCHANGE_AUDIT_TITLE);
+        assert_eq!(m.title, EXCHANGE_AUDIT_TITLE);
         assert_eq!(m.methods, vec![AuditMethod::ExchangeSurface]);
         assert_eq!(m.version.as_deref(), Some(MANIFEST_VERSION));
     }
@@ -190,8 +189,8 @@ mod tests {
     #[test]
     fn deserializes_legacy_manifest_without_new_fields() {
         let json = r#"{
-          "article": "Exchange — Where RWA Exchange Risk Actually Sits",
-          "post_url": "https://example.com",
+          "title": "Exchange — Where RWA Exchange Risk Actually Sits",
+          "reference_url": "https://example.com",
           "frozen_at": "2026-06-17T00:00:00Z",
           "panel_date": "2026-06-12",
           "claims": [{

@@ -15,7 +15,7 @@
       "value_display": "$1.03B",
       "value_usd": 1030000000.0,
       "as_of": "2026-04-20",
-      "evidence_file": "artifacts/data/rwa_xyz_platform_transfer_snapshots.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/rwa_xyz_platform_transfer_snapshots.json",
       "source_url": "https://app.rwa-xyz.com/platforms/xstocks",
       "caveat": "Peer-to-peer on-chain transfers; excludes mint/burn."
     },
@@ -25,7 +25,7 @@
       "value_display": "$1.60B",
       "value_usd": 1600000000.0,
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/rwa_xyz_platform_transfer_snapshots.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/rwa_xyz_platform_transfer_snapshots.json",
       "source_url": "https://app.rwa.xyz/platforms/xstocks",
       "caveat": "Peer-to-peer on-chain transfers; excludes mint/burn."
     },
@@ -35,7 +35,7 @@
       "value_display": "$764M",
       "value_usd": 763761027.47,
       "as_of": "2026-06-11",
-      "evidence_file": "artifacts/data/rwa-token-timeseries-export-1781314094816.csv",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/rwa-token-timeseries-export-1781314094816.csv",
       "source_url": "https://app.rwa.xyz/platforms/xstocks",
       "caveat": "CSV export row sum; not transfer flow."
     },
@@ -45,7 +45,7 @@
       "value_display": "$124k",
       "value_usd": 124062.35,
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/gecko_aaplx_pools.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/gecko_aaplx_pools.json",
       "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana",
       "caveat": "GeckoTerminal Solana public pools aggregate."
     },
@@ -55,7 +55,7 @@
       "value_display": "$35k",
       "value_usd": 34771.14,
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/gecko_aaplx_pools.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/gecko_aaplx_pools.json",
       "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=AAPLx&network=solana",
       "caveat": "GeckoTerminal Solana public pools aggregate."
     },
@@ -64,7 +64,7 @@
       "label": "Jupiter AAPLx @ $100k USDC price impact",
       "value_display": "68%",
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/jupiter_quote_aaplx_100k.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/jupiter_quote_aaplx_100k.json",
       "source_url": "https://lite-api.jup.ag/swap/v1/quote?inputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp&amount=100000000000&slippageBps=100",
       "caveat": "Quote-only; publish fixture or live API at freeze time."
     },
@@ -74,7 +74,7 @@
       "value_display": "$7.1M",
       "value_usd": 7102758.23,
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/gecko_spyx_pools.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/gecko_spyx_pools.json",
       "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=SPYx&network=solana",
       "caveat": "Fig. 4 input; not in prose body."
     },
@@ -84,7 +84,7 @@
       "value_display": "$3.4M",
       "value_usd": 3358518.82,
       "as_of": "2026-06-12",
-      "evidence_file": "artifacts/data/gecko_tslax_pools.json",
+      "evidence_file": "artifacts/audits/article3-xstocks-2026-06-12/data/gecko_tslax_pools.json",
       "source_url": "https://api.geckoterminal.com/api/v2/search/pools?query=TSLAx&network=solana",
       "caveat": "Fig. 4 input; not in prose body."
     }

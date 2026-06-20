@@ -110,7 +110,7 @@ fn promote_exchange_bundle_writes_bundle_layout_in_temp_repo() {
 
     let manifest = load_manifest(&bundle_manifest_path_at(EXCHANGE_BUNDLE.id, &temp.root)).unwrap();
     assert_eq!(manifest.audit_id.as_deref(), Some(EXCHANGE_BUNDLE.id));
-    assert!(manifest.article.contains("Exchange"));
+    assert!(manifest.title.contains("Exchange"));
     assert!(manifest.claims[0]
         .evidence_file
         .contains("artifacts/audits/"));
