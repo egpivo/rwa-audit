@@ -19,6 +19,8 @@ pub enum SourceId {
     YahooFinance,
     #[serde(rename = "manual_import")]
     ManualImport,
+    #[serde(rename = "rwa_xyz")]
+    RwaXyz,
 }
 
 impl SourceId {
@@ -32,6 +34,7 @@ impl SourceId {
             Self::Jupiter => "jupiter",
             Self::YahooFinance => "yahoo_finance",
             Self::ManualImport => "manual_import",
+            Self::RwaXyz => "rwa_xyz",
         }
     }
 }

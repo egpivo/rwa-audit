@@ -4,33 +4,59 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 
-use crate::config::{rpc_for_chain, SLEEP_BETWEEN_RPC_MS, TRANSFER_TOPIC};
 use crate::models::RpcResponse;
 
-use super::adapters::{CoinGeckoAdapter, EthplorerAdapter, PublicNodeRpcAdapter};
+use super::adapter::SourceAdapter;
+use super::adapters::{EthplorerAdapter, PublicNodeRpcAdapter};
 use super::cache::ResponseCache;
+use super::registry::SourceRegistry;
 use super::transport::HttpTransport;
+use super::types::{SourceId, SourceRequest, SourceResponse};
 
-/// Shared runtime for source adapters: transport, cache, and high-level RPC helpers.
+/// Shared runtime for source adapters: registry, transport, cache, and typed helpers.
 pub struct SourceContext {
     transport: HttpTransport,
     cache: ResponseCache,
+    registry: SourceRegistry,
     ethplorer: EthplorerAdapter,
 }
 
 impl SourceContext {
     pub fn new() -> Result<Self> {
+        Self::with_registry(SourceRegistry::load_default()?)
+    }
+
+    pub fn for_live_collection() -> Result<Self> {
+        let registry = SourceRegistry::load_default()?;
+        let cache = registry
+            .build_cache()
+            .with_ttl(Some(Duration::from_secs(300)))
+            .with_bypass_volatile(true);
         Ok(Self {
             transport: HttpTransport::new()?,
-            cache: ResponseCache::default(),
+            cache,
+            registry,
             ethplorer: EthplorerAdapter::default(),
         })
     }
 
-    pub fn for_live_collection() -> Result<Self> {
+    /// Force a network fetch without reading or writing the response cache.
+    pub fn for_force_refresh() -> Result<Self> {
+        let registry = SourceRegistry::load_default()?;
         Ok(Self {
             transport: HttpTransport::new()?,
-            cache: ResponseCache::live_collection(),
+            cache: ResponseCache::disabled(),
+            registry,
+            ethplorer: EthplorerAdapter::default(),
+        })
+    }
+
+    pub fn with_registry(registry: SourceRegistry) -> Result<Self> {
+        let cache = registry.build_cache();
+        Ok(Self {
+            transport: HttpTransport::new()?,
+            cache,
+            registry,
             ethplorer: EthplorerAdapter::default(),
         })
     }
@@ -38,6 +64,10 @@ impl SourceContext {
     pub fn with_cache(mut self, cache: ResponseCache) -> Self {
         self.cache = cache;
         self
+    }
+
+    pub fn registry(&self) -> &SourceRegistry {
+        &self.registry
     }
 
     pub fn cache(&self) -> &ResponseCache {
@@ -48,13 +78,48 @@ impl SourceContext {
         &self.transport
     }
 
+    pub fn profile(&self, id: SourceId) -> Option<&super::profile::SourceProfile> {
+        self.registry.profile(id)
+    }
+
+    pub fn require_profile(&self, id: SourceId) -> Result<&super::profile::SourceProfile> {
+        self.registry.require_profile(id)
+    }
+
+    pub fn http_base_url(&self, id: SourceId) -> Result<String> {
+        Ok(self.require_profile(id)?.http_base()?.to_string())
+    }
+
+    pub fn rate_limit_sleep(&self, id: SourceId) {
+        if let Ok(profile) = self.require_profile(id) {
+            if profile.rate_limit_ms > 0 {
+                thread::sleep(Duration::from_millis(profile.rate_limit_ms));
+            }
+        }
+    }
+
+    pub fn fetch(&self, id: SourceId, req: SourceRequest) -> Result<SourceResponse> {
+        let adapter = self.registry.resolve_adapter(id)?;
+        SourceAdapter::fetch(adapter, self, req)
+    }
+
     pub fn http_get(
         &self,
         url: &str,
         params: &[(&str, &str)],
         retries: u32,
     ) -> Result<Option<Value>> {
-        self.transport.http_get(url, params, retries)
+        match self.transport.http_get(url, params, retries)? {
+            super::transport::HttpGetResult::Ok(v) => Ok(Some(v)),
+            super::transport::HttpGetResult::RateLimited => Ok(None),
+            super::transport::HttpGetResult::ClientError { status, .. } => {
+                anyhow::bail!("HTTP {status} for {url}");
+            }
+        }
+    }
+
+    pub fn rpc_for_chain(&self, chain: &str) -> Result<String> {
+        self.registry.rpc_url(chain)
     }
 
     pub fn rpc_call(
@@ -64,20 +129,13 @@ impl SourceContext {
         params: Value,
         retries: u32,
     ) -> Result<Option<RpcResponse>> {
-        PublicNodeRpcAdapter::rpc_call(
-            &self.transport,
-            &self.cache,
-            rpc_url,
-            method,
-            params,
-            retries,
-        )
+        PublicNodeRpcAdapter::rpc_call(self, rpc_url, method, params, retries)
     }
 
     pub fn get_current_block(&self, chain: &str) -> Result<u64> {
-        let rpc = rpc_for_chain(chain);
+        let rpc = self.rpc_for_chain(chain)?;
         let r = self
-            .rpc_call(rpc, "eth_blockNumber", json!([]), 3)?
+            .rpc_call(&rpc, "eth_blockNumber", json!([]), 3)?
             .context("eth_blockNumber failed")?;
         if let Some(result) = r.result {
             if let Some(hex) = result.as_str() {
@@ -99,7 +157,6 @@ impl SourceContext {
     }
 
     pub fn eth_call(&self, rpc_url: &str, contract: &str, data: &str) -> Result<Option<String>> {
-        thread::sleep(Duration::from_millis(SLEEP_BETWEEN_RPC_MS));
         let r = self.rpc_call(
             rpc_url,
             "eth_call",
@@ -109,18 +166,20 @@ impl SourceContext {
         Ok(r.and_then(|r| r.result.and_then(|v| v.as_str().map(str::to_string))))
     }
 
+    pub fn get_price_usd(&self, oracle: SourceId, id: &str) -> Result<Option<f64>> {
+        self.registry.price_oracle(oracle)?.price_usd(self, id)
+    }
+
     pub fn get_coingecko_price(&self, cg_id: &str) -> Result<Option<f64>> {
-        CoinGeckoAdapter::simple_price_usd(&self.transport, &self.cache, cg_id)
+        self.get_price_usd(SourceId::CoinGecko, cg_id)
     }
 
     pub fn get_ethplorer_token_info(&self, contract: &str) -> Result<Value> {
-        self.ethplorer
-            .token_info(&self.transport, &self.cache, contract)
+        self.ethplorer.token_info(self, contract)
     }
 
     pub fn get_ethplorer_top_holders(&self, contract: &str, limit: u32) -> Result<Vec<Value>> {
-        self.ethplorer
-            .top_holders(&self.transport, &self.cache, contract, limit)
+        self.ethplorer.top_holders(self, contract, limit)
     }
 
     pub fn get_transfer_logs_chunked(
@@ -131,7 +190,7 @@ impl SourceContext {
         to_block: u64,
         chunk_blocks: u64,
     ) -> Result<Vec<Value>> {
-        let rpc = rpc_for_chain(chain);
+        let rpc = self.rpc_for_chain(chain)?;
         let mut all_logs = Vec::new();
         let mut chunk = chunk_blocks;
         let mut current = from_block;
@@ -140,16 +199,15 @@ impl SourceContext {
 
         while current <= to_block && all_logs.len() < max_logs {
             let end = (current + chunk - 1).min(to_block);
-            thread::sleep(Duration::from_millis(SLEEP_BETWEEN_RPC_MS));
 
             let params = json!([{
                 "address": contract.to_lowercase(),
-                "topics": [TRANSFER_TOPIC],
+                "topics": [crate::config::TRANSFER_TOPIC],
                 "fromBlock": format!("0x{current:x}"),
                 "toBlock": format!("0x{end:x}"),
             }]);
 
-            let r = match self.rpc_call(rpc, "eth_getLogs", params, 3)? {
+            let r = match self.rpc_call(&rpc, "eth_getLogs", params, 3)? {
                 Some(r) => r,
                 None => {
                     eprintln!("    Chunk {chunk_count}: RPC call failed");
@@ -207,7 +265,7 @@ impl SourceContext {
             let end = (cur + chunk - 1).min(to_block);
             let params = json!([{
                 "address": contract,
-                "topics": [TRANSFER_TOPIC],
+                "topics": [crate::config::TRANSFER_TOPIC],
                 "fromBlock": format!("0x{cur:x}"),
                 "toBlock": format!("0x{end:x}"),
             }]);
@@ -230,7 +288,6 @@ impl SourceContext {
                         logs.extend(batch);
                     }
                     cur = end + 1;
-                    thread::sleep(Duration::from_millis(100));
                 }
                 _ => {
                     if chunk > 5000 {
@@ -253,5 +310,18 @@ mod tests {
     #[test]
     fn source_context_constructs() {
         SourceContext::new().unwrap();
+    }
+
+    #[test]
+    fn force_refresh_disables_cache() {
+        let ctx = SourceContext::for_force_refresh().unwrap();
+        assert!(!ctx.cache().is_enabled());
+    }
+
+    #[test]
+    fn fetch_coingecko_uses_registry_base() {
+        let ctx = SourceContext::new().unwrap();
+        let profile = ctx.profile(SourceId::CoinGecko).unwrap();
+        assert!(profile.base_url.as_ref().unwrap().contains("coingecko"));
     }
 }

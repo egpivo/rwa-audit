@@ -13,8 +13,9 @@ use crate::flow::output::{
     write_panel_daily, write_panel_pool_detail, write_panel_summary, write_reference_gold,
     PanelDailyRow, PanelPoolRow, PanelSummary,
 };
-use crate::flow::reference::fetch_gc_futures;
+use crate::flow::reference::fetch_gc_futures_with;
 use crate::flow::stats::{coefficient_of_variation, pearson_r, robust_z, spike_ratio};
+use crate::sources::SourceContext;
 
 #[derive(Debug, Clone)]
 struct DayAgg {
@@ -22,15 +23,16 @@ struct DayAgg {
     pool_volumes: Vec<(String, f64)>,
 }
 
-pub fn collect_flow_panel() -> Result<()> {
+pub(crate) fn collect_flow_panel() -> Result<()> {
     let out_dir = flow_data_dir();
     ensure_dir(&out_dir)?;
 
     let start = panel_start_date();
     let end = panel_end_date();
-    let gecko = GeckoClient::new()?;
+    let ctx = SourceContext::for_live_collection()?;
+    let gecko = GeckoClient::new(&ctx);
 
-    let gold = fetch_gc_futures(start, end)?;
+    let gold = fetch_gc_futures_with(&ctx, start, end)?;
     write_reference_gold(&out_dir, &gold)?;
     let gold_abs: HashMap<NaiveDate, f64> = gold.iter().map(|g| (g.date, g.abs_return)).collect();
     let gold_z_map: HashMap<NaiveDate, f64> = {

@@ -7,7 +7,7 @@ use crate::flow::output::{write_tx_reconstructions, TxReconRow};
 
 const SWAP_V3_TOPIC: &str = "0xc42079f94a6350d65e623abf017871ec234316d7fcc48fd4af35ff82926fdc145";
 
-pub fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
+pub(crate) fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
     let out_dir = flow_data_dir();
     ensure_dir(&out_dir)?;
 
@@ -35,9 +35,10 @@ pub fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
 }
 
 fn reconstruct_tx(client: &HttpClient, hash: &str, label: &str) -> Result<Option<TxReconRow>> {
+    let eth_rpc = client.context().rpc_for_chain("Ethereum")?;
     let r = client
         .rpc_call(
-            crate::config::ETH_RPC,
+            &eth_rpc,
             "eth_getTransactionReceipt",
             serde_json::json!([hash]),
             3,

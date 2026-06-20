@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
-use reqwest::blocking::Client;
 
 use crate::config::ensure_dir;
 use crate::core::manifest::{AuditManifest, ManifestClaim};
@@ -21,8 +20,8 @@ use crate::exchange::rwa_xyz::{
 };
 use crate::flow::config::JUPITER_QUOTE_USD;
 use crate::flow::gecko::{fetch_solana_symbol_pool_aggregate, SymbolPoolAggregate};
-use crate::flow::jupiter::{fetch_aaplx_quote_100k, JupiterQuoteEvidence};
-use crate::sources::SourceId;
+use crate::flow::jupiter::{fetch_aaplx_quote_100k_with, JupiterQuoteEvidence};
+use crate::sources::SourceContext;
 
 #[derive(Debug, Clone, Default)]
 pub struct ExchangeFreezeOptions {
@@ -47,7 +46,7 @@ pub(crate) fn materialize_transfer_seed_for_live_staging(
     Ok(())
 }
 
-pub fn freeze_exchange_evidence(opts: ExchangeFreezeOptions) -> Result<()> {
+pub(crate) fn freeze_exchange_evidence(opts: ExchangeFreezeOptions) -> Result<()> {
     let out_dir = config::exchange_output_dir(opts.live_apis);
     ensure_dir(&out_dir)?;
 
@@ -87,22 +86,17 @@ pub fn freeze_exchange_evidence(opts: ExchangeFreezeOptions) -> Result<()> {
     write_json(&out_dir.join("bridged_value_sum.json"), &bridged)?;
 
     let gecko_aggs = if opts.live_apis {
-        let http = Client::builder()
-            .user_agent("rwa-audit/0.1")
-            .timeout(std::time::Duration::from_secs(60))
-            .build()?;
+        let ctx = SourceContext::for_live_collection()?;
         let mut aggs = Vec::new();
         for x in XSTOCKS_SOLANA {
             println!("GeckoTerminal Solana pools for {}...", x.symbol);
-            let agg = fetch_solana_symbol_pool_aggregate(&http, x.symbol)?;
+            let agg = fetch_solana_symbol_pool_aggregate(&ctx, x.symbol)?;
             let fname = format!("gecko_{}_pools.json", x.symbol.to_lowercase());
-            write_sourced_json(
-                &out_dir.join(&fname),
-                &agg,
-                SourceId::GeckoTerminal,
-                &agg.source_url,
-                true,
-            )?;
+            let provenance = agg
+                .provenance
+                .as_ref()
+                .context("Gecko aggregate missing provenance")?;
+            write_sourced_json(&out_dir.join(&fname), &agg, provenance)?;
             aggs.push(agg);
         }
         aggs
@@ -120,13 +114,16 @@ pub fn freeze_exchange_evidence(opts: ExchangeFreezeOptions) -> Result<()> {
 
     let jupiter = if opts.live_apis {
         println!("Jupiter USDC → AAPLx @ ${JUPITER_QUOTE_USD}...");
-        let q = fetch_aaplx_quote_100k()?;
+        let ctx = SourceContext::for_live_collection()?;
+        let q = fetch_aaplx_quote_100k_with(&ctx)?;
+        let provenance = q
+            .provenance
+            .as_ref()
+            .context("Jupiter quote missing provenance")?;
         write_sourced_json(
             &out_dir.join("jupiter_quote_aaplx_100k.json"),
             &q,
-            SourceId::Jupiter,
-            &q.source_url,
-            true,
+            provenance,
         )?;
         q
     } else {
@@ -438,6 +435,7 @@ mod tests {
                 source_url: "u".into(),
                 pool_count: 1,
                 top_pool_vol_share: None,
+                provenance: None,
             },
             &SymbolPoolAggregate {
                 symbol: "TSLAx".into(),
@@ -446,6 +444,7 @@ mod tests {
                 source_url: "u".into(),
                 pool_count: 1,
                 top_pool_vol_share: None,
+                provenance: None,
             },
             &SymbolPoolAggregate {
                 symbol: "SPYx".into(),
@@ -454,6 +453,7 @@ mod tests {
                 source_url: "u".into(),
                 pool_count: 1,
                 top_pool_vol_share: None,
+                provenance: None,
             },
             &JupiterQuoteEvidence {
                 input_mint: "a".into(),
@@ -467,6 +467,7 @@ mod tests {
                 out_amount_raw: None,
                 route_labels: vec![],
                 source_url: "u".into(),
+                provenance: None,
                 raw_response: serde_json::json!({}),
             },
             68.0,

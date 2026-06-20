@@ -2,8 +2,7 @@
 
 use anyhow::Result;
 
-use rwa_audit::core::bundle::{list_bundle_specs, promote_audit_bundle, EXCHANGE_BUNDLE};
-use rwa_audit::exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
+use rwa_audit::core::bundle::{list_bundle_specs, promote_audit_bundle};
 
 fn usage() -> ! {
     eprintln!(
@@ -14,7 +13,7 @@ fn usage() -> ! {
 
 Examples:
   rwa-freeze promote article3-xstocks-2026-06-12
-  rwa-freeze exchange"
+  rwa-freeze exchange --live"
     );
     std::process::exit(1);
 }
@@ -35,25 +34,38 @@ fn main() -> Result<()> {
             println!("Promoted bundle → {}", dest.display());
         }
         "exchange" => {
-            let mut opts = ExchangeFreezeOptions::default();
+            eprintln!(
+                "warning: rwa-freeze exchange is deprecated; use 'rwa-audit freeze exchange' instead"
+            );
+            let mut live = false;
+            let mut refresh_rwa = false;
             for arg in args {
                 match arg.as_str() {
-                    "--live" => opts.live_apis = true,
-                    "--refresh-rwa" => opts.refresh_rwa_xyz = true,
+                    "--live" => live = true,
+                    "--refresh-rwa" => refresh_rwa = true,
                     _ => usage(),
                 }
             }
-            let live = opts.live_apis;
-            freeze_exchange_evidence(opts)?;
             if !live {
-                let dest = promote_audit_bundle(EXCHANGE_BUNDLE.id)?;
-                println!("Exchange bundle → {}", dest.display());
-            } else {
-                println!(
-                    "Live exchange evidence written to {}; bundle not promoted",
-                    rwa_audit::exchange::config::exchange_live_staging_dir().display()
+                anyhow::bail!(
+                    "rwa-freeze exchange (non-live) is no longer supported; \
+                     use 'rwa-audit freeze exchange' to get correct write locking"
                 );
             }
+            // Live: route through run_module so the lock is applied consistently.
+            let ctx = rwa_audit::AuditContext::new()?;
+            let bundle = rwa_audit::run_module(
+                "exchange",
+                &ctx,
+                rwa_audit::RunMode::Live,
+                &rwa_audit::audit::RunExtra {
+                    exchange: rwa_audit::audit::ExchangeRunArgs {
+                        refresh_rwa_xyz: refresh_rwa,
+                    },
+                    ..Default::default()
+                },
+            )?;
+            println!("{}", bundle.summary);
         }
         _ => usage(),
     }

@@ -15,12 +15,9 @@ pub mod output;
 pub mod sources;
 pub mod tools;
 
-pub use activity::collect_activity_timeseries;
 pub use audit::{list_run_targets, run_module, AuditContext, EvidenceBundle, RunMode};
-pub use collect::collect_all;
-pub use core::{promote_audit_bundle, AuditBundleSpec, AuditManifest, AuditMethod};
-pub use exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
-pub use flow::panel::collect_flow_panel;
-pub use flow::paraswap::collect_paraswap_quotes;
-pub use flow::tx_recon::reconstruct_case_studies;
-pub use sources::{SourceContext, SourceId};
+pub use core::{
+    promote_audit_bundle, promote_publish_bundle_at, AuditBundleSpec, AuditManifest, AuditMethod,
+    PublishBundle,
+};
+pub use sources::{SourceContext, SourceId, SourceRegistry};

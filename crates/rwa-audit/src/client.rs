@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::models::RpcResponse;
-use crate::sources::SourceContext;
+use crate::sources::{SourceContext, SourceId};
 
 pub use crate::evm::{
     decode_uint256, default_fallback_block, parse_hex_u64, parse_transfer_log, token_amount,
@@ -65,6 +65,10 @@ impl HttpClient {
 
     pub fn eth_call(&self, rpc_url: &str, contract: &str, data: &str) -> Result<Option<String>> {
         self.ctx.eth_call(rpc_url, contract, data)
+    }
+
+    pub fn get_price_usd(&self, oracle: SourceId, id: &str) -> Result<Option<f64>> {
+        self.ctx.get_price_usd(oracle, id)
     }
 
     pub fn get_coingecko_price(&self, cg_id: &str) -> Result<Option<f64>> {

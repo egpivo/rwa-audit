@@ -5,8 +5,10 @@ use anyhow::{bail, Result};
 use crate::activity::collect_activity_timeseries;
 use crate::collect::collect_all;
 use crate::config::data_dir;
-use crate::core::bundle::{promote_audit_bundle, validate_exchange_promote, EXCHANGE_BUNDLE};
 use crate::core::manifest::AuditMethod;
+use crate::core::publish::{
+    ExchangePublishBundle, RegistryPublishBundle, EXCHANGE_BUNDLE, REGISTRY_BUNDLE,
+};
 use crate::exchange::config::exchange_output_dir;
 use crate::exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
 use crate::flow::panel::collect_flow_panel;
@@ -18,6 +20,7 @@ use super::{AuditContext, AuditModule, EvidenceBundle, RunExtra, RunMode};
 
 pub struct RegistryModule;
 pub struct ActivityModule;
+pub struct Article1Module;
 pub struct FlowPanelModule;
 pub struct FlowQuotesModule;
 pub struct FlowTxModule;
@@ -26,6 +29,7 @@ pub struct ExchangeModule;
 const MODULE_NAMES: &[&str] = &[
     "registry",
     "activity",
+    "article1",
     "flow-panel",
     "flow-quotes",
     "flow-tx",
@@ -40,6 +44,7 @@ pub fn resolve_module(name: &str) -> Result<&'static dyn AuditModule> {
     match name {
         "registry" => Ok(&RegistryModule),
         "activity" => Ok(&ActivityModule),
+        "article1" => Ok(&Article1Module),
         "flow-panel" => Ok(&FlowPanelModule),
         "flow-quotes" => Ok(&FlowQuotesModule),
         "flow-tx" => Ok(&FlowTxModule),
@@ -59,7 +64,6 @@ pub fn parse_run_mode(raw: &str, snapshot_date: Option<String>) -> Result<RunMod
 #[derive(Debug, Clone, Default)]
 pub struct ExchangeRunArgs {
     pub refresh_rwa_xyz: bool,
-    pub promote_bundle: bool,
 }
 
 pub fn exchange_run_mode(mode: &RunMode) -> ExchangeFreezeOptions {
@@ -91,6 +95,10 @@ impl AuditModule for RegistryModule {
         ]
     }
 
+    fn data_write_lock_id(&self) -> Option<&'static str> {
+        Some(REGISTRY_BUNDLE.id)
+    }
+
     fn run(&self, ctx: &AuditContext, mode: RunMode, _extra: &RunExtra) -> Result<EvidenceBundle> {
         if !mode.is_live() {
             bail!("registry module only supports --mode live (on-chain collection)");
@@ -103,6 +111,7 @@ impl AuditModule for RegistryModule {
             mode,
             files_written: registry_output_files(&out),
             summary: format!("Registry metrics written to {}", out.display()),
+            panel_date: None,
         })
     }
 }
@@ -120,18 +129,77 @@ impl AuditModule for ActivityModule {
         vec![SourceId::PublicNodeRpc]
     }
 
+    fn data_write_lock_id(&self) -> Option<&'static str> {
+        Some(REGISTRY_BUNDLE.id)
+    }
+
     fn run(&self, ctx: &AuditContext, mode: RunMode, _extra: &RunExtra) -> Result<EvidenceBundle> {
         if !mode.is_live() {
             bail!("activity module only supports --mode live");
         }
-        collect_activity_timeseries(&ctx.activity_assets_path)?;
+        let observation_date = collect_activity_timeseries(&ctx.activity_assets_path)?;
         let path = data_dir().join("rwa_activity_daily_30d.csv");
         Ok(EvidenceBundle {
             module: self.name().into(),
             method: self.method(),
             mode,
             files_written: vec![path.clone()],
-            summary: format!("Activity series written to {}", path.display()),
+            summary: format!(
+                "Activity series written to {} (as_of {})",
+                path.display(),
+                observation_date
+            ),
+            panel_date: Some(observation_date),
+        })
+    }
+}
+
+impl AuditModule for Article1Module {
+    fn name(&self) -> &'static str {
+        "article1"
+    }
+
+    fn method(&self) -> AuditMethod {
+        AuditMethod::Registry
+    }
+
+    fn required_sources(&self) -> Vec<SourceId> {
+        vec![
+            SourceId::PublicNodeRpc,
+            SourceId::CoinGecko,
+            SourceId::Ethplorer,
+        ]
+    }
+
+    fn publish_bundle(&self) -> Option<&'static dyn crate::core::publish::PublishBundle> {
+        static BUNDLE: RegistryPublishBundle = RegistryPublishBundle;
+        Some(&BUNDLE)
+    }
+
+    fn data_write_lock_id(&self) -> Option<&'static str> {
+        Some(REGISTRY_BUNDLE.id)
+    }
+
+    fn run(&self, ctx: &AuditContext, mode: RunMode, _extra: &RunExtra) -> Result<EvidenceBundle> {
+        if !mode.is_live() {
+            bail!("article1 only supports --mode live (on-chain collection)");
+        }
+        collect_all(&ctx.registry_assets_path)?;
+        let observation_date = collect_activity_timeseries(&ctx.activity_assets_path)?;
+        let out = data_dir();
+        let mut files = registry_output_files(&out);
+        files.push(out.join("rwa_activity_daily_30d.csv"));
+        Ok(EvidenceBundle {
+            module: self.name().into(),
+            method: self.method(),
+            mode,
+            files_written: files,
+            summary: format!(
+                "Article 1 evidence (registry + activity) written to {} (as_of {})",
+                out.display(),
+                observation_date
+            ),
+            panel_date: Some(observation_date),
         })
     }
 }
@@ -161,6 +229,7 @@ impl AuditModule for FlowPanelModule {
             mode,
             files_written: vec![out.join("panel_daily.csv"), out.join("panel_summary.json")],
             summary: format!("Flow panel written to {}", out.display()),
+            panel_date: None,
         })
     }
 }
@@ -190,6 +259,7 @@ impl AuditModule for FlowQuotesModule {
             mode,
             files_written: vec![out.join("paraswap_quotes.csv")],
             summary: format!("ParaSwap quotes written to {}", out.display()),
+            panel_date: None,
         })
     }
 }
@@ -226,6 +296,7 @@ impl AuditModule for FlowTxModule {
                 extra.tx_hashes.len(),
                 path.display()
             ),
+            panel_date: None,
         })
     }
 }
@@ -247,6 +318,15 @@ impl AuditModule for ExchangeModule {
         ]
     }
 
+    fn publish_bundle(&self) -> Option<&'static dyn crate::core::publish::PublishBundle> {
+        static BUNDLE: ExchangePublishBundle = ExchangePublishBundle;
+        Some(&BUNDLE)
+    }
+
+    fn data_write_lock_id(&self) -> Option<&'static str> {
+        Some(EXCHANGE_BUNDLE.id)
+    }
+
     fn run(&self, ctx: &AuditContext, mode: RunMode, extra: &RunExtra) -> Result<EvidenceBundle> {
         let mut opts = exchange_run_mode(&mode);
         opts.refresh_rwa_xyz = extra.exchange.refresh_rwa_xyz;
@@ -259,8 +339,7 @@ impl AuditModule for ExchangeModule {
             opts.panel_date.as_deref(),
         )?;
 
-        let mut files = exchange_output_files(&out_dir);
-        let mut summary = if opts.live_apis {
+        let summary = if opts.live_apis {
             format!(
                 "Live exchange evidence written to {} (publish staging untouched)",
                 out_dir.display()
@@ -269,19 +348,13 @@ impl AuditModule for ExchangeModule {
             format!("Exchange evidence frozen to {}", out_dir.display())
         };
 
-        if extra.exchange.promote_bundle {
-            validate_exchange_promote(EXCHANGE_BUNDLE.id, &panel_date, opts.live_apis)?;
-            let bundle = promote_audit_bundle(EXCHANGE_BUNDLE.id)?;
-            summary.push_str(&format!("; bundle → {}", bundle.display()));
-            files.push(bundle.join("manifest.json"));
-        }
-
         Ok(EvidenceBundle {
             module: self.name().into(),
             method: self.method(),
             mode,
-            files_written: files,
+            files_written: exchange_output_files(&out_dir),
             summary,
+            panel_date: Some(panel_date),
         })
     }
 }

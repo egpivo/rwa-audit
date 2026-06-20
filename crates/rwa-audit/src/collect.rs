@@ -5,8 +5,7 @@ use chrono::Utc;
 use crate::assets::{detect_permissioning_from_known, registry_assets_from};
 use crate::client::{decode_uint256, default_fallback_block, HttpClient};
 use crate::config::{
-    block_time_secs, data_dir, ensure_dir, rpc_for_chain, CHUNK_BLOCKS, MONTHS_HISTORY,
-    TOTAL_SUPPLY_SEL,
+    block_time_secs, data_dir, ensure_dir, CHUNK_BLOCKS, MONTHS_HISTORY, TOTAL_SUPPLY_SEL,
 };
 use crate::metrics::compute_monthly_metrics;
 use crate::models::{HolderRow, MintBurnRow, QualityNote, RegistryRow, TransferRow};
@@ -59,7 +58,7 @@ pub(crate) fn round_metric(value: f64) -> f64 {
     (value * 10000.0).round() / 10000.0
 }
 
-pub fn collect_all(assets_path: &Path) -> anyhow::Result<()> {
+pub(crate) fn collect_all(assets_path: &Path) -> anyhow::Result<()> {
     let output_dir = data_dir();
     ensure_dir(&output_dir)?;
 
@@ -93,7 +92,7 @@ pub fn collect_all(assets_path: &Path) -> anyhow::Result<()> {
             vec![notes_base.clone()]
         };
 
-        let rpc_url = rpc_for_chain(&chain);
+        let rpc_url = client.context().rpc_for_chain(&chain)?;
         let block_time_sec = block_time_secs(&chain);
 
         let mut current_block = client.get_current_block(&chain)?;
@@ -104,7 +103,7 @@ pub fn collect_all(assets_path: &Path) -> anyhow::Result<()> {
         }
 
         println!("  Fetching total supply via eth_call...");
-        let ts_raw = client.eth_call(rpc_url, &contract, TOTAL_SUPPLY_SEL)?;
+        let ts_raw = client.eth_call(&rpc_url, &contract, TOTAL_SUPPLY_SEL)?;
         let total_supply_raw = decode_uint256(ts_raw.as_deref());
 
         let mut total_supply_tokens = total_supply_tokens_from_raw(total_supply_raw, decimals);

@@ -7,10 +7,12 @@ use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
 use crate::config::{artifacts_data_dir, ensure_dir, repo_root};
-use crate::core::manifest::{load_manifest, write_manifest, AuditManifest, ManifestClaim};
+use crate::core::manifest::{load_manifest, AuditManifest};
+use crate::core::publish::{resolve_publish_bundle, AuditBundleSpec, FreezeError, PublishBundle};
+
+pub use crate::core::publish::{EXCHANGE_BUNDLE, REGISTRY_BUNDLE};
 
 const BUNDLE_VERSIONS_DIR: &str = "versions";
-const REGISTRY_BUNDLE_PANEL_DATE: &str = "2026-06-01";
 
 struct StagingGuard {
     path: Option<PathBuf>,
@@ -37,76 +39,6 @@ impl Drop for StagingGuard {
         }
     }
 }
-
-fn bundle_frozen_at(audit_id: &str) -> String {
-    std::env::var("RWA_AUDIT_FROZEN_AT").unwrap_or_else(|_| {
-        if audit_id == REGISTRY_BUNDLE.id {
-            format!("{REGISTRY_BUNDLE_PANEL_DATE}T00:00:00Z")
-        } else {
-            chrono::Utc::now().to_rfc3339()
-        }
-    })
-}
-
-fn bundle_panel_date(audit_id: &str, frozen_at: &str) -> String {
-    if audit_id == REGISTRY_BUNDLE.id {
-        REGISTRY_BUNDLE_PANEL_DATE.into()
-    } else {
-        frozen_at.split('T').next().unwrap_or(frozen_at).to_string()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AuditBundleSpec {
-    pub id: &'static str,
-    /// Flat legacy directory (e.g. artifacts/data) to copy from.
-    pub legacy_source: &'static str,
-    pub manifest_filename: &'static str,
-    pub data_files: &'static [&'static str],
-    pub figure_files: &'static [&'static str],
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum FreezeError {
-    #[error("unknown audit bundle: {0}")]
-    UnknownAudit(String),
-    #[error("missing source file: {0}")]
-    MissingSource(PathBuf),
-}
-
-pub const EXCHANGE_BUNDLE: AuditBundleSpec = AuditBundleSpec {
-    id: "article3-xstocks-2026-06-12",
-    legacy_source: "artifacts/data",
-    manifest_filename: "manifest.json",
-    data_files: &[
-        "depth_vs_volume_panel_publish.csv",
-        "depth_vs_volume_panel.csv",
-        "rwa_xyz_platform_transfer_snapshots.json",
-        "rwa_xyz_platform_snapshots.json",
-        "bridged_value_sum.json",
-        "rwa-token-timeseries-export-1781314094816.csv",
-        "gecko_aaplx_pools.json",
-        "gecko_tslax_pools.json",
-        "gecko_spyx_pools.json",
-        "jupiter_quote_aaplx_100k.json",
-    ],
-    figure_files: &["xstocks_surface_snapshot.png"],
-};
-
-pub const REGISTRY_BUNDLE: AuditBundleSpec = AuditBundleSpec {
-    id: "article1-registry-2026-06",
-    legacy_source: "data",
-    manifest_filename: "manifest.json",
-    data_files: &[
-        "rwa_asset_registry.csv",
-        "rwa_transfer_metrics.csv",
-        "rwa_holder_metrics.csv",
-        "rwa_mint_burn_metrics.csv",
-        "rwa_data_quality_notes.md",
-        "rwa_activity_daily_30d.csv",
-    ],
-    figure_files: &[],
-};
 
 pub fn audit_bundle_dir(audit_id: &str) -> PathBuf {
     audit_bundle_dir_at(audit_id, &repo_root())
@@ -161,7 +93,7 @@ fn digest_bundle_subtree(hasher: &mut Sha256, dir: &Path, label: &[u8]) -> Resul
     Ok(())
 }
 
-fn validate_bundle_version(bundle_root: &Path, spec: &AuditBundleSpec) -> Result<()> {
+fn validate_bundle_version(bundle_root: &Path, bundle: &dyn PublishBundle) -> Result<()> {
     let manifest_path = bundle_root.join("manifest.json");
     anyhow::ensure!(
         manifest_path.is_file(),
@@ -176,7 +108,7 @@ fn validate_bundle_version(bundle_root: &Path, spec: &AuditBundleSpec) -> Result
         "bundle version missing data/ under {}",
         bundle_root.display()
     );
-    for name in spec.data_files {
+    for name in bundle.data_files() {
         let path = data_dir.join(name);
         anyhow::ensure!(
             path.is_file(),
@@ -185,7 +117,7 @@ fn validate_bundle_version(bundle_root: &Path, spec: &AuditBundleSpec) -> Result
         );
     }
     let figures_dir = bundle_root.join("figures");
-    for fig in spec.figure_files {
+    for fig in bundle.figure_files() {
         let path = figures_dir.join(fig);
         anyhow::ensure!(
             path.is_file(),
@@ -223,45 +155,18 @@ fn validate_bundle_claims(bundle_root: &Path, manifest: &AuditManifest) -> Resul
     Ok(())
 }
 
-fn prepare_exchange_manifest(
-    audit_id: &str,
-    src_root: &Path,
-    spec: &AuditBundleSpec,
-) -> Result<Option<AuditManifest>> {
-    let legacy_manifest = src_root.join(spec.manifest_filename);
-    if legacy_manifest.exists() {
-        let mut manifest = load_manifest(&legacy_manifest)?;
-        if audit_id == EXCHANGE_BUNDLE.id {
-            validate_exchange_promote(audit_id, &manifest.panel_date, false)?;
-        }
-        manifest.audit_id = Some(audit_id.into());
-        if manifest.version.is_none() {
-            manifest.version = Some(crate::core::manifest::MANIFEST_VERSION.into());
-        }
-        for claim in &mut manifest.claims {
-            claim.evidence_file = rewrite_evidence_path(&claim.evidence_file, audit_id);
-        }
-        Ok(Some(manifest))
-    } else if audit_id == REGISTRY_BUNDLE.id {
-        Ok(None)
-    } else {
-        bail!(FreezeError::MissingSource(legacy_manifest));
-    }
-}
-
 fn write_bundle_version_staging(
     root: &Path,
     versions_parent: &Path,
-    audit_id: &str,
+    bundle: &dyn PublishBundle,
     src_root: &Path,
-    spec: &AuditBundleSpec,
-    exchange_manifest: Option<AuditManifest>,
+    prepared_manifest: Option<AuditManifest>,
 ) -> Result<StagingGuard> {
     let token = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let staging = versions_parent.join(format!(".{audit_id}-staging-{token}"));
+    let staging = versions_parent.join(format!(".{}-staging-{token}", bundle.id()));
     if staging.exists() {
         fs::remove_dir_all(&staging)?;
     }
@@ -272,14 +177,14 @@ fn write_bundle_version_staging(
     ensure_dir(&version_data)?;
     ensure_dir(&version_figures)?;
 
-    copy_into_bundle(src_root, &version_data, spec.data_files)?;
+    copy_into_bundle(src_root, &version_data, bundle.data_files())?;
 
     let stale_data_manifest = version_data.join("manifest.json");
     if stale_data_manifest.exists() {
         fs::remove_file(&stale_data_manifest)?;
     }
 
-    for fig in spec.figure_files {
+    for fig in bundle.figure_files() {
         let src = root.join("artifacts/figures").join(fig);
         anyhow::ensure!(
             src.is_file(),
@@ -289,30 +194,25 @@ fn write_bundle_version_staging(
         fs::copy(&src, version_figures.join(fig))?;
     }
 
-    if let Some(manifest) = exchange_manifest {
-        write_manifest(&staging.join("manifest.json"), &manifest)?;
-    } else {
-        write_registry_manifest_at(audit_id, &staging, &version_data)?;
-    }
+    bundle.materialize_manifest(&staging, &version_data, prepared_manifest)?;
 
-    validate_bundle_version(&staging, spec)?;
+    validate_bundle_version(&staging, bundle)?;
     Ok(guard)
 }
 
 /// Validate staging, derive digest from the full tree (manifest + data + figures), install under versions/.
 fn install_bundle_version(
     audits_parent: &Path,
-    audit_id: &str,
+    bundle: &dyn PublishBundle,
     staging: &Path,
-    spec: &AuditBundleSpec,
 ) -> Result<(PathBuf, String)> {
-    validate_bundle_version(staging, spec)?;
+    validate_bundle_version(staging, bundle)?;
     let digest = digest_bundle_tree(staging)?;
-    let version_name = bundle_version_name(audit_id, &digest);
+    let version_name = bundle_version_name(bundle.id(), &digest);
     let version_root = audits_parent.join(BUNDLE_VERSIONS_DIR).join(&version_name);
 
     if version_root.is_dir() {
-        let reusable = validate_bundle_version(&version_root, spec).is_ok()
+        let reusable = validate_bundle_version(&version_root, bundle).is_ok()
             && digest_bundle_tree(&version_root)? == digest;
         if reusable {
             let _ = fs::remove_dir_all(staging);
@@ -370,16 +270,15 @@ fn is_materialized_bundle_pointer(pointer: &Path) -> bool {
 /// runs once, subsequent promotions only perform atomic symlink-to-symlink swaps.
 fn migrate_materialized_bundle_pointer(
     audits_parent: &Path,
-    audit_id: &str,
+    bundle: &dyn PublishBundle,
     pointer: &Path,
-    spec: &AuditBundleSpec,
 ) -> Result<()> {
     if !is_materialized_bundle_pointer(pointer) {
         return Ok(());
     }
     let digest = digest_bundle_tree(pointer)?;
-    validate_bundle_version(pointer, spec)?;
-    let version_name = bundle_version_name(audit_id, &digest);
+    validate_bundle_version(pointer, bundle)?;
+    let version_name = bundle_version_name(bundle.id(), &digest);
     let versions_parent = audits_parent.join(BUNDLE_VERSIONS_DIR);
     ensure_dir(&versions_parent)?;
     let version_root = versions_parent.join(&version_name);
@@ -399,7 +298,7 @@ fn migrate_materialized_bundle_pointer(
                 version_root.display()
             );
         }
-        validate_bundle_version(&version_root, spec)?;
+        validate_bundle_version(&version_root, bundle)?;
         fs::remove_dir_all(pointer).with_context(|| {
             format!(
                 "remove materialized bundle {} after version {} exists",
@@ -417,7 +316,7 @@ fn migrate_materialized_bundle_pointer(
         })?;
     }
 
-    activate_bundle_version(audits_parent, audit_id, &version_name)
+    activate_bundle_version(audits_parent, bundle.id(), &version_name)
 }
 
 fn acquire_bundle_promote_lock(audit_id: &str) -> Result<fs::File> {
@@ -517,57 +416,17 @@ pub fn bundle_manifest_path_at(audit_id: &str, root: &Path) -> PathBuf {
 }
 
 pub fn resolve_bundle_spec(audit_id: &str) -> Result<&'static AuditBundleSpec, FreezeError> {
-    if audit_id == EXCHANGE_BUNDLE.id {
-        Ok(&EXCHANGE_BUNDLE)
-    } else if audit_id == REGISTRY_BUNDLE.id {
-        Ok(&REGISTRY_BUNDLE)
-    } else {
-        Err(FreezeError::UnknownAudit(audit_id.into()))
-    }
+    Ok(resolve_publish_bundle(audit_id)?.spec())
 }
 
 pub fn list_bundle_specs() -> [&'static AuditBundleSpec; 2] {
     [&EXCHANGE_BUNDLE, &REGISTRY_BUNDLE]
 }
 
-/// Panel date encoded in a versioned exchange bundle id.
-pub fn exchange_bundle_panel_date(audit_id: &str) -> Option<&'static str> {
-    if audit_id == EXCHANGE_BUNDLE.id {
-        Some(crate::exchange::config::PUBLISH_PANEL_DATE)
-    } else {
-        None
-    }
-}
-
-/// Guard against promoting live staging or misdated evidence into a fixed bundle.
-pub fn validate_exchange_promote(bundle_id: &str, panel_date: &str, from_live: bool) -> Result<()> {
-    if from_live {
-        anyhow::bail!(
-            "cannot promote live exchange evidence into publish bundle {bundle_id}; \
-             review data/exchange-live/ and run an offline freeze to artifacts/data/ before promote"
-        );
-    }
-    if let Some(expected) = exchange_bundle_panel_date(bundle_id) {
-        anyhow::ensure!(
-            panel_date == expected,
-            "panel date {panel_date} does not match bundle id {bundle_id} (expected {expected})"
-        );
-    }
-    Ok(())
-}
-
 fn sha256_hex(path: &Path) -> Result<String> {
     let bytes = fs::read(path)?;
     let digest = Sha256::digest(bytes);
     Ok(format!("{:x}", digest))
-}
-
-fn rewrite_evidence_path(path: &str, audit_id: &str) -> String {
-    let file_name = Path::new(path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.into());
-    format!("artifacts/audits/{audit_id}/data/{file_name}")
 }
 
 fn copy_into_bundle(
@@ -593,43 +452,47 @@ fn copy_into_bundle(
     Ok(checksums)
 }
 
-/// Promote legacy flat outputs into `artifacts/audits/{id}/` with rewritten manifest paths.
-pub fn promote_audit_bundle(audit_id: &str) -> Result<PathBuf> {
-    promote_audit_bundle_at(audit_id, &repo_root())
+/// RAII guard that holds the per-bundle exclusive lock across a collect→promote sequence.
+/// Acquired before collection begins; dropped after promotion completes. Prevents concurrent
+/// invocations from interleaving writes to shared `data/*.csv` or reading half-written CSVs.
+pub(crate) struct CollectPromoteLock {
+    _file: fs::File,
 }
 
-pub fn promote_audit_bundle_at(audit_id: &str, root: &Path) -> Result<PathBuf> {
-    let spec = resolve_bundle_spec(audit_id).map_err(|e| anyhow::anyhow!("{e}"))?;
-    let src_root = root.join(spec.legacy_source);
+/// Acquire the bundle promote lock BEFORE collection starts.
+/// The returned [`CollectPromoteLock`] must be passed to [`promote_publish_bundle_after_collect`]
+/// so the entire collect→promote sequence runs under a single cross-process lock.
+pub(crate) fn acquire_collect_promote_lock(bundle_id: &str) -> Result<CollectPromoteLock> {
+    let file = acquire_bundle_promote_lock(bundle_id)?;
+    Ok(CollectPromoteLock { _file: file })
+}
+
+/// Core promotion logic. Caller is responsible for holding a lock (either a
+/// [`CollectPromoteLock`] from before collection, or the lock inside [`promote_publish_bundle_at`]).
+fn do_promote(bundle: &dyn PublishBundle, root: &Path) -> Result<PathBuf> {
+    let audit_id = bundle.id();
+    let src_root = root.join(bundle.legacy_source());
     let bundle_pointer = audit_bundle_dir_at(audit_id, root);
     let audits_parent = root.join("artifacts/audits");
     let versions_parent = bundle_versions_dir_at(root);
-    let _promote_lock = acquire_bundle_promote_lock(audit_id)?;
     let previous_target = read_bundle_pointer_target(&bundle_pointer);
 
-    for name in spec.data_files {
+    for name in bundle.data_files() {
         if !src_root.join(name).exists() {
             bail!(FreezeError::MissingSource(src_root.join(name)));
         }
     }
 
-    let exchange_manifest = prepare_exchange_manifest(audit_id, &src_root, spec)?;
+    let prepared_manifest = bundle.prepare_manifest(&src_root)?;
 
-    let staging_guard = write_bundle_version_staging(
-        root,
-        &versions_parent,
-        audit_id,
-        &src_root,
-        spec,
-        exchange_manifest,
-    )?;
+    let staging_guard =
+        write_bundle_version_staging(root, &versions_parent, bundle, &src_root, prepared_manifest)?;
     let staging = staging_guard.path().to_path_buf();
 
-    let (version_root, version_name) =
-        install_bundle_version(&audits_parent, audit_id, &staging, spec)?;
+    let (version_root, version_name) = install_bundle_version(&audits_parent, bundle, &staging)?;
     staging_guard.disarm();
 
-    migrate_materialized_bundle_pointer(&audits_parent, audit_id, &bundle_pointer, spec)?;
+    migrate_materialized_bundle_pointer(&audits_parent, bundle, &bundle_pointer)?;
 
     activate_bundle_version(&audits_parent, audit_id, &version_name)?;
 
@@ -640,95 +503,35 @@ pub fn promote_audit_bundle_at(audit_id: &str, root: &Path) -> Result<PathBuf> {
     Ok(bundle_pointer)
 }
 
-fn write_registry_manifest_at(audit_id: &str, bundle_root: &Path, data_dir: &Path) -> Result<()> {
-    let frozen_at = bundle_frozen_at(audit_id);
-    let panel_date = bundle_panel_date(audit_id, &frozen_at);
-    let claims = build_registry_claims(audit_id, data_dir, &panel_date)?;
-    let manifest = AuditManifest {
-        audit_id: Some(audit_id.into()),
-        version: Some(crate::core::manifest::MANIFEST_VERSION.into()),
-        article: "Registry — If Everything Can Be Tokenized, What Should We Audit?".into(),
-        post_url: "https://egpivo.github.io/2026/06/07/if-everything-can-be-tokenized-what-should-we-audit.html".into(),
-        frozen_at,
-        panel_date,
-        methods: vec![
-            crate::core::manifest::AuditMethod::Registry,
-            crate::core::manifest::AuditMethod::Activity,
-        ],
-        claims,
-        do_not_claim: vec![
-            "On-chain transfer volume is not CEX trading volume".into(),
-            "Holder concentration from Ethplorer may omit permissioned counterparties".into(),
-        ],
-    };
-    write_manifest(&bundle_root.join("manifest.json"), &manifest)
+/// Promote a bundle after an atomic collect run. Requires the [`CollectPromoteLock`] that was
+/// acquired before collection started, proving that the full collect→promote sequence is
+/// serialized and that this caller actually ran the collection phase.
+/// `pub(crate)` — only the internal module runner should call this.
+pub(crate) fn promote_publish_bundle_after_collect(
+    bundle: &dyn PublishBundle,
+    lock: CollectPromoteLock,
+) -> Result<PathBuf> {
+    // lock is moved in and dropped at end of function, covering the promotion phase too.
+    let _lock = lock;
+    do_promote(bundle, &repo_root())
 }
 
-fn build_registry_claims(
-    audit_id: &str,
-    data_dir: &Path,
-    as_of: &str,
-) -> Result<Vec<ManifestClaim>> {
-    let artifacts = [
-        (
-            "registry_universe",
-            "rwa_asset_registry.csv",
-            "Article 1 ERC-20 registry universe",
-        ),
-        (
-            "transfer_metrics",
-            "rwa_transfer_metrics.csv",
-            "Monthly ERC-20 transfer metrics",
-        ),
-        (
-            "holder_metrics",
-            "rwa_holder_metrics.csv",
-            "Holder concentration snapshot",
-        ),
-        (
-            "mint_burn_metrics",
-            "rwa_mint_burn_metrics.csv",
-            "Mint and burn activity metrics",
-        ),
-        (
-            "activity_timeseries",
-            "rwa_activity_daily_30d.csv",
-            "30-day observable activity time series",
-        ),
-    ];
-
-    let mut claims = Vec::new();
-    for (id, file, label) in artifacts {
-        let path = data_dir.join(file);
-        anyhow::ensure!(
-            path.exists(),
-            "missing registry evidence file: {}",
-            path.display()
-        );
-        let rows = count_csv_data_rows(&path)?;
-        claims.push(ManifestClaim {
-            id: id.into(),
-            label: format!("{label} ({rows} rows)"),
-            value_display: format!("{rows} rows"),
-            value_usd: None,
-            as_of: as_of.into(),
-            evidence_file: format!("artifacts/audits/{audit_id}/data/{file}"),
-            source_url: "https://github.com/egpivo/rwa-audit".into(),
-            caveat: "Promoted from live collection outputs in data/.".into(),
-            status: None,
-        });
-    }
-    Ok(claims)
+/// Promote legacy flat outputs into `artifacts/audits/{id}/` with rewritten manifest paths.
+/// Calls [`PublishBundle::check_standalone_promote_allowed`] — use this for the generic
+/// `freeze promote` path. For post-collection promotion use [`promote_publish_bundle_after_collect`].
+pub fn promote_audit_bundle(audit_id: &str) -> Result<PathBuf> {
+    promote_audit_bundle_at(audit_id, &repo_root())
 }
 
-fn count_csv_data_rows(path: &Path) -> Result<usize> {
-    let text = fs::read_to_string(path)?;
-    let rows = text
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .count()
-        .saturating_sub(1);
-    Ok(rows)
+pub fn promote_publish_bundle_at(bundle: &dyn PublishBundle, root: &Path) -> Result<PathBuf> {
+    bundle.check_standalone_promote_allowed()?;
+    let _lock = acquire_bundle_promote_lock(bundle.id())?;
+    do_promote(bundle, root)
+}
+
+pub fn promote_audit_bundle_at(audit_id: &str, root: &Path) -> Result<PathBuf> {
+    let bundle = resolve_publish_bundle(audit_id).map_err(|e| anyhow::anyhow!("{e}"))?;
+    promote_publish_bundle_at(bundle, root)
 }
 
 /// Convenience: exchange bundle reads from `artifacts_data_dir()`.
@@ -740,6 +543,38 @@ pub fn promote_exchange_bundle() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::manifest::{load_manifest, write_manifest};
+    use crate::core::publish::{rewrite_evidence_path, validate_exchange_promote, REGISTRY_BUNDLE};
+
+    #[test]
+    fn registry_bundle_blocks_standalone_promote() {
+        let root = std::env::temp_dir().join(format!(
+            "rwa-bundle-registry-standalone-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let err = promote_audit_bundle_at(REGISTRY_BUNDLE.id, &root).unwrap_err();
+        assert!(
+            err.to_string().contains("article1 --promote"),
+            "expected guidance to run article1 --promote, got: {err}"
+        );
+        // No files should have been written
+        assert!(
+            !root.exists(),
+            "temp root should not be created when guard fires"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn exchange_bundle_allows_standalone_promote_guard() {
+        use crate::core::publish::EXCHANGE_BUNDLE;
+        // check_standalone_promote_allowed should not fail for exchange
+        let bundle = crate::core::publish::resolve_publish_bundle(EXCHANGE_BUNDLE.id).unwrap();
+        bundle.check_standalone_promote_allowed().unwrap();
+    }
 
     fn seed_exchange_figures(root: &Path) {
         let figures = root.join("artifacts/figures");

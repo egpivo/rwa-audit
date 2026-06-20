@@ -1,12 +1,11 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde_json::Value;
 
-use crate::config::{COINGECKO_BASE, SLEEP_BETWEEN_API_MS};
-
 use super::super::adapter::SourceAdapter;
-use super::super::cache::ResponseCache;
-use super::super::transport::HttpTransport;
-use super::super::types::{Provenance, SourceId, SourceRequest, SourceResponse};
+use super::super::capability::PriceOracle;
+use super::super::context::SourceContext;
+use super::super::fetch::http_get_cached;
+use super::super::types::{SourceId, SourceRequest, SourceResponse};
 
 pub struct CoinGeckoAdapter;
 
@@ -15,55 +14,25 @@ impl SourceAdapter for CoinGeckoAdapter {
         SourceId::CoinGecko
     }
 
-    fn fetch(
-        &self,
-        transport: &HttpTransport,
-        cache: &ResponseCache,
-        req: SourceRequest,
-    ) -> Result<SourceResponse> {
+    fn fetch(&self, ctx: &SourceContext, req: SourceRequest) -> Result<SourceResponse> {
         let SourceRequest::HttpGet { url, query } = req else {
-            anyhow::bail!("CoinGeckoAdapter expects HttpGet request");
+            bail!("CoinGeckoAdapter expects HttpGet request");
         };
-        let key = ResponseCache::key_from_url(
-            &url,
-            &query
-                .iter()
-                .map(|(k, v)| (k.as_str(), v.as_str()))
-                .collect::<Vec<_>>(),
-        );
-        if let Some(body) = cache.get(self.id(), &key) {
-            return Ok(SourceResponse {
-                provenance: Provenance::new(self.id(), &url, false),
-                body,
-            });
-        }
-
-        std::thread::sleep(std::time::Duration::from_millis(SLEEP_BETWEEN_API_MS));
-        let params: Vec<(&str, &str)> = query
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let body = transport.http_get(&url, &params, 3)?.unwrap_or(Value::Null);
-        cache.put(self.id(), &key, &body)?;
-        Ok(SourceResponse {
-            provenance: Provenance::new(self.id(), &url, true)
-                .with_sha256(ResponseCache::body_sha256(&body)),
-            body,
-        })
+        http_get_cached(self, ctx, &url, &query, &[])
     }
 }
 
 impl CoinGeckoAdapter {
-    pub fn simple_price_usd(
-        transport: &HttpTransport,
-        cache: &ResponseCache,
-        cg_id: &str,
-    ) -> Result<Option<f64>> {
-        let url = format!("{COINGECKO_BASE}/simple/price");
+    fn base_url(ctx: &SourceContext) -> Result<String> {
+        ctx.http_base_url(SourceId::CoinGecko)
+    }
+
+    pub fn simple_price_usd(ctx: &SourceContext, cg_id: &str) -> Result<Option<f64>> {
+        let base = Self::base_url(ctx)?;
+        let url = format!("{base}/simple/price");
         let adapter = Self;
         let resp = adapter.fetch(
-            transport,
-            cache,
+            ctx,
             SourceRequest::HttpGet {
                 url: url.clone(),
                 query: vec![
@@ -79,6 +48,12 @@ impl CoinGeckoAdapter {
         body.get(cg_id)
             .and_then(|x| x.get("usd"))
             .and_then(|x| x.as_f64())
+    }
+}
+
+impl PriceOracle for CoinGeckoAdapter {
+    fn price_usd(&self, ctx: &SourceContext, id: &str) -> Result<Option<f64>> {
+        Self::simple_price_usd(ctx, id)
     }
 }
 

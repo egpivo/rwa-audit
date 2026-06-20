@@ -1,10 +1,5 @@
 use std::path::{Path, PathBuf};
 
-pub const ETH_RPC: &str = "https://ethereum.publicnode.com";
-pub const POLYGON_RPC: &str = "https://polygon.publicnode.com";
-pub const COINGECKO_BASE: &str = "https://api.coingecko.com/api/v3";
-
-pub const SLEEP_BETWEEN_RPC_MS: u64 = 150;
 pub const SLEEP_BETWEEN_API_MS: u64 = 500;
 pub const CHUNK_BLOCKS: u64 = 40_000;
 pub const MONTHS_HISTORY: u64 = 6;
@@ -14,14 +9,6 @@ pub const TRANSFER_TOPIC: &str =
 pub const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
 
 pub const TOTAL_SUPPLY_SEL: &str = "0x18160ddd";
-
-pub fn rpc_for_chain(chain: &str) -> &'static str {
-    if chain == "Ethereum" {
-        ETH_RPC
-    } else {
-        POLYGON_RPC
-    }
-}
 
 pub fn block_time_secs(chain: &str) -> u64 {
     if chain == "Ethereum" {
@@ -87,12 +74,6 @@ pub fn ensure_dir(path: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rpc_for_chain_selects_endpoint() {
-        assert!(rpc_for_chain("Ethereum").contains("ethereum"));
-        assert!(rpc_for_chain("Polygon").contains("polygon"));
-    }
 
     #[test]
     fn block_time_secs_by_chain() {

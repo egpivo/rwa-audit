@@ -5,7 +5,9 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::exchange::config::{platform_seed_path, RWA_XSTOCKS_URL};
+use crate::exchange::config::platform_seed_path;
+use crate::sources::fetch::{http_get_text_cached, response_text};
+use crate::sources::{SourceContext, SourceId};
 
 pub const SEED_TRANSFER_FILENAME: &str = "rwa_xyz_platform_transfer_snapshots.json";
 
@@ -73,6 +75,17 @@ pub fn snapshot_for_date<'a>(
         .find(|s| s.date == date)
 }
 
+/// xStocks platform page URL from `config/sources.yaml` (`rwa_xyz.base_url`).
+pub fn rwa_xstocks_url(ctx: &SourceContext) -> Result<String> {
+    const DEFAULT_PATH: &str = "/platforms/xstocks";
+    let base = ctx.http_base_url(SourceId::RwaXyz)?;
+    let base = base.trim_end_matches('/');
+    if base.contains("/platforms/") {
+        return Ok(base.to_string());
+    }
+    Ok(format!("{base}{DEFAULT_PATH}"))
+}
+
 /// Fetch RWA.xyz SSR snapshots and persist merged seed to `save_path` only.
 pub fn fetch_and_merge_seed(access_date: &str, save_path: &Path) -> Result<PlatformSeedFile> {
     let mut seed = load_seed_from(&seed_path()).unwrap_or(PlatformSeedFile {
@@ -83,13 +96,11 @@ pub fn fetch_and_merge_seed(access_date: &str, save_path: &Path) -> Result<Platf
         snapshots: vec![],
     });
 
-    let html = reqwest::blocking::Client::builder()
-        .user_agent("rwa-audit/0.1")
-        .build()?
-        .get(RWA_XSTOCKS_URL)
-        .send()?
-        .error_for_status()?
-        .text()?;
+    let ctx = SourceContext::for_force_refresh()?;
+    let fetch_url = rwa_xstocks_url(&ctx)?;
+    let resp = http_get_text_cached(SourceId::RwaXyz, &ctx, &fetch_url, &[])?;
+    let source_url = resp.provenance.request_url.clone();
+    let html = response_text(&resp)?;
 
     let json_str = extract_next_data(&html)?;
     let page: Value = serde_json::from_str(&json_str)?;
@@ -99,11 +110,12 @@ pub fn fetch_and_merge_seed(access_date: &str, save_path: &Path) -> Result<Platf
         .cloned()
         .unwrap_or(Value::Null);
 
-    let mut scraped = lag_snapshots(access_date, &trailing);
+    let mut scraped = lag_snapshots(access_date, &trailing, &source_url);
     if let Some(headline) = headline_snapshot(
         access_date,
         &page,
         trailing.get("val_7d").and_then(|v| v.as_f64()),
+        &source_url,
     ) {
         scraped.push(headline);
     }
@@ -124,7 +136,7 @@ fn extract_next_data(html: &str) -> Result<String> {
     Ok(html[start..end].to_string())
 }
 
-fn lag_snapshots(access_date: &str, trailing: &Value) -> Vec<PlatformSnapshot> {
+fn lag_snapshots(access_date: &str, trailing: &Value, source_url: &str) -> Vec<PlatformSnapshot> {
     let base = chrono::NaiveDate::parse_from_str(access_date, "%Y-%m-%d").ok();
     let Some(base) = base else {
         return vec![];
@@ -143,7 +155,7 @@ fn lag_snapshots(access_date: &str, trailing: &Value) -> Vec<PlatformSnapshot> {
         out.push(PlatformSnapshot {
             date: snap_date,
             monthly_transfer_volume_usd: (val * 100.0).round() / 100.0,
-            source_url: RWA_XSTOCKS_URL.into(),
+            source_url: source_url.into(),
             accessed_date: access_date.into(),
             confidence: "high".into(),
             caveat: format!(
@@ -160,6 +172,7 @@ fn headline_snapshot(
     access_date: &str,
     page: &Value,
     trailing_7d: Option<f64>,
+    source_url: &str,
 ) -> Option<PlatformSnapshot> {
     let aggregates = page["props"]["pageProps"]["aggregates"].as_array()?;
     let headline = aggregates
@@ -171,7 +184,7 @@ fn headline_snapshot(
             return Some(PlatformSnapshot {
                 date: access_date.into(),
                 monthly_transfer_volume_usd: (val * 100.0).round() / 100.0,
-                source_url: RWA_XSTOCKS_URL.into(),
+                source_url: source_url.into(),
                 accessed_date: access_date.into(),
                 confidence: "low".into(),
                 caveat: format!(
@@ -186,7 +199,7 @@ fn headline_snapshot(
     Some(PlatformSnapshot {
         date: access_date.into(),
         monthly_transfer_volume_usd: (val * 100.0).round() / 100.0,
-        source_url: RWA_XSTOCKS_URL.into(),
+        source_url: source_url.into(),
         accessed_date: access_date.into(),
         confidence: "high".into(),
         caveat: "RWA.xyz SSR dashboard aggregate Monthly Transfer Volume".into(),

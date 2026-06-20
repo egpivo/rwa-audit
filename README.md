@@ -4,15 +4,14 @@ Rust tooling to audit tokenized real-world assets (RWA). Extract on-chain eviden
 
 | Article | Post | Scope | Unified module |
 |---------|------|-------|----------------|
-| 1 | [If Everything Can Be Tokenized, What Should We Audit?](https://egpivo.github.io/2026/06/07/if-everything-can-be-tokenized-what-should-we-audit.html) | Contract registry + activity | `registry`, `activity` |
+| 1 | [If Everything Can Be Tokenized, What Should We Audit?](https://egpivo.github.io/2026/06/07/if-everything-can-be-tokenized-what-should-we-audit.html) | Contract registry + activity | `article1` |
 | 2 | [Where RWA Flow Leaves Traces](https://egpivo.github.io/2026/06/14/where-rwa-trades-and-exits-actually-clear.html) | Pools, quotes, tx recon | `flow-panel`, `flow-quotes`, `flow-tx` |
 | 3 | [Where RWA Exchange Risk Actually Sits](https://egpivo.github.io/2026/06/21/where-rwa-exchange-risk-actually-sits.html) | xStocks exchange surface | `exchange` |
 
 ## Unified CLI
 
 ```bash
-cargo run --bin rwa-audit -- run registry --mode live
-cargo run --bin rwa-audit -- run activity --mode live
+cargo run --bin rwa-audit -- run article1 --promote     # registry + activity → artifacts/audits/
 cargo run --bin rwa-audit -- run flow-panel --mode live
 cargo run --bin rwa-audit -- run flow-quotes --mode live
 cargo run --bin rwa-audit -- run flow-tx 0x<tx_hash>

@@ -83,6 +83,10 @@ impl ResponseCache {
         &self.root
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     fn entry_path(&self, source: SourceId, key: &str) -> PathBuf {
         self.root
             .join("sources")

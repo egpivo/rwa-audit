@@ -1,12 +1,10 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde_json::{json, Value};
 
-use crate::config::SLEEP_BETWEEN_API_MS;
-
 use super::super::adapter::SourceAdapter;
-use super::super::cache::ResponseCache;
-use super::super::transport::HttpTransport;
-use super::super::types::{Provenance, SourceId, SourceRequest, SourceResponse};
+use super::super::context::SourceContext;
+use super::super::fetch::http_get_cached;
+use super::super::types::{SourceId, SourceRequest, SourceResponse};
 
 pub struct EthplorerAdapter {
     pub api_key: String,
@@ -25,76 +23,46 @@ impl SourceAdapter for EthplorerAdapter {
         SourceId::Ethplorer
     }
 
-    fn fetch(
-        &self,
-        transport: &HttpTransport,
-        cache: &ResponseCache,
-        req: SourceRequest,
-    ) -> Result<SourceResponse> {
+    fn fetch(&self, ctx: &SourceContext, req: SourceRequest) -> Result<SourceResponse> {
         let SourceRequest::HttpGet { url, query } = req else {
-            anyhow::bail!("EthplorerAdapter expects HttpGet request");
+            bail!("EthplorerAdapter expects HttpGet request");
         };
-        let mut q = query.clone();
+        let mut q = query;
         if !q.iter().any(|(k, _)| k == "apiKey") {
             q.push(("apiKey".into(), self.api_key.clone()));
         }
-        let key = ResponseCache::key_from_url(
-            &url,
-            &q.iter()
-                .map(|(k, v)| (k.as_str(), v.as_str()))
-                .collect::<Vec<_>>(),
-        );
-        if let Some(body) = cache.get(self.id(), &key) {
-            return Ok(SourceResponse {
-                provenance: Provenance::new(self.id(), &url, false),
-                body,
-            });
+        let mut resp = http_get_cached(self, ctx, &url, &q, &[])?;
+        if resp.body.get("error").is_some() {
+            resp.body = json!({});
         }
-
-        std::thread::sleep(std::time::Duration::from_millis(SLEEP_BETWEEN_API_MS));
-        let params: Vec<(&str, &str)> = q.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let body = transport
-            .http_get(&url, &params, 3)?
-            .filter(|v| v.get("error").is_none())
-            .unwrap_or(json!({}));
-        cache.put(self.id(), &key, &body)?;
-        Ok(SourceResponse {
-            provenance: Provenance::new(self.id(), &url, true)
-                .with_sha256(ResponseCache::body_sha256(&body)),
-            body,
-        })
+        Ok(resp)
     }
 }
 
 impl EthplorerAdapter {
-    pub fn token_info(
-        &self,
-        transport: &HttpTransport,
-        cache: &ResponseCache,
-        contract: &str,
-    ) -> Result<Value> {
-        let url = format!("https://api.ethplorer.io/getTokenInfo/{contract}");
+    fn base_url(ctx: &SourceContext) -> Result<String> {
+        ctx.http_base_url(SourceId::Ethplorer)
+    }
+
+    pub fn token_info(&self, ctx: &SourceContext, contract: &str) -> Result<Value> {
+        let base = Self::base_url(ctx)?;
+        let url = format!("{base}/getTokenInfo/{contract}");
         Ok(self
-            .fetch(
-                transport,
-                cache,
-                SourceRequest::HttpGet { url, query: vec![] },
-            )?
+            .fetch(ctx, SourceRequest::HttpGet { url, query: vec![] })?
             .body)
     }
 
     pub fn top_holders(
         &self,
-        transport: &HttpTransport,
-        cache: &ResponseCache,
+        ctx: &SourceContext,
         contract: &str,
         limit: u32,
     ) -> Result<Vec<Value>> {
-        let url = format!("https://api.ethplorer.io/getTopTokenHolders/{contract}");
+        let base = Self::base_url(ctx)?;
+        let url = format!("{base}/getTopTokenHolders/{contract}");
         let body = self
             .fetch(
-                transport,
-                cache,
+                ctx,
                 SourceRequest::HttpGet {
                     url,
                     query: vec![("limit".into(), limit.to_string())],

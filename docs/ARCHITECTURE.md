@@ -16,10 +16,12 @@ flowchart TB
     modes["RunMode: live | frozen"]
     bundle["EvidenceBundle"]
     modules["modules: registry | activity | flow-* | exchange"]
+    publish_hook["publish_bundle() → PublishBundle"]
   end
 
   subgraph Core["core/ — publish contract"]
     manifest["AuditManifest + claims"]
+    publish_trait["PublishBundle trait"]
     promote["bundle promote → artifacts/audits/{id}/"]
   end
 
@@ -36,9 +38,11 @@ flowchart TB
 
   subgraph Sources["sources/ — adapters"]
     ctx["SourceContext"]
+    registry["SourceRegistry ← sources.yaml"]
+    trait_src["SourceAdapter trait"]
     transport["HttpTransport"]
     cache["ResponseCache → cache/sources/"]
-    adapters["RPC | CoinGecko | Ethplorer"]
+    adapters["RPC | CoinGecko | Ethplorer | GeckoTerminal | Jupiter | ParaSwap | Yahoo"]
     prov["Provenance envelope on live JSON"]
   end
 
@@ -65,11 +69,15 @@ flowchart TB
   modules --> Collectors
   modules --> Tools
   modules --> Core
+  publish_hook --> publish_trait
+  publish_trait --> promote
   collect --> ctx
   flow -.-> transport
   exchange --> Core
   exchange --> prov
-  ctx --> adapters
+  ctx --> registry
+  registry --> trait_src
+  trait_src --> adapters
   adapters --> transport
   adapters --> cache
   modules --> assets
@@ -124,7 +132,7 @@ sequenceDiagram
 | `flow-tx` | FlowSurface | live | publicnode_rpc |
 | `exchange` | ExchangeSurface | frozen (live → `data/exchange-live/`) | manual_import, geckoterminal*, jupiter* |
 
-\* Flow Gecko/ParaSwap/Jupiter still in `flow/` — migration to `sources/` pending.
+\* All external APIs route through `sources/` adapters (`SourceRegistry` + `SourceContext`).
 
 ## Directory layout
 
@@ -133,7 +141,7 @@ config/assets/          # asset universe (YAML)
 config/sources.yaml     # source registry
 crates/rwa-audit/src/
   audit/                # Phase 4 unified CLI + AuditModule
-  core/                 # manifest + bundle promote
+  core/                 # manifest + PublishBundle + bundle promote
   sources/              # Phase 3 adapters + cache
   evm.rs                # hex / log parsing
   collect.rs activity.rs flow/ exchange/

@@ -13,6 +13,7 @@ use crate::flow::config::{
 };
 use crate::flow::gecko::SymbolPoolAggregate;
 use crate::flow::jupiter::JupiterQuoteEvidence;
+use crate::sources::{Provenance, SourceId};
 
 const PUBLISH_JUPITER_IMPACT_PCT: f64 = 68.2;
 
@@ -95,7 +96,8 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
         total_tvl_usd: tvl.with_context(|| format!("{symbol} TVL in reference panel"))?,
         total_24h_vol_usd: vol.with_context(|| format!("{symbol} vol in reference panel"))?,
         top_pool_vol_share: None,
-        source_url,
+        source_url: source_url.clone(),
+        provenance: Some(Provenance::new(SourceId::GeckoTerminal, source_url, false)),
     })
 }
 
@@ -103,7 +105,16 @@ pub fn jupiter_quote_from_publish_fixture() -> Result<JupiterQuoteEvidence> {
     let fixture = jupiter_publish_fixture_path();
     if fixture.is_file() {
         let text = fs::read_to_string(&fixture)?;
-        return serde_json::from_str(&text).context("parse jupiter publish fixture");
+        let mut q: JupiterQuoteEvidence =
+            serde_json::from_str(&text).context("parse jupiter publish fixture")?;
+        if q.provenance.is_none() {
+            q.provenance = Some(Provenance::new(
+                SourceId::Jupiter,
+                q.source_url.clone(),
+                false,
+            ));
+        }
+        return Ok(q);
     }
 
     let input_amount_raw = JUPITER_QUOTE_USD * 1_000_000;
@@ -126,7 +137,8 @@ pub fn jupiter_quote_from_publish_fixture() -> Result<JupiterQuoteEvidence> {
             "Raydium CLMM".into(),
             "Byreal".into(),
         ],
-        source_url: url,
+        source_url: url.clone(),
+        provenance: Some(Provenance::new(SourceId::Jupiter, url, false)),
         raw_response: json!({
             "note": "Publish fixture from jupiter_xstocks_verification_memo (2026-06-14 quote pass)",
             "priceImpactPct": "0.682",

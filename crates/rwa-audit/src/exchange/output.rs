@@ -5,7 +5,7 @@ use crate::exchange::bridged::BridgedValueSum;
 use crate::exchange::rwa_xyz::PlatformSnapshot;
 use crate::flow::gecko::SymbolPoolAggregate;
 use crate::flow::jupiter::JupiterQuoteEvidence;
-use crate::sources::{write_json_with_provenance, Provenance, SourceId};
+use crate::sources::{write_json_with_provenance, Provenance};
 use anyhow::Result;
 use serde::Serialize;
 
@@ -34,12 +34,9 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
 pub fn write_sourced_json(
     path: &Path,
     value: &impl Serialize,
-    source: SourceId,
-    request_url: &str,
-    live: bool,
+    provenance: &Provenance,
 ) -> Result<()> {
-    let provenance = Provenance::new(source, request_url, live);
-    write_json_with_provenance(path, value, provenance)
+    write_json_with_provenance(path, value, provenance.clone())
 }
 
 pub fn write_depth_panel(path: &Path, rows: &[DepthPanelRow]) -> Result<()> {

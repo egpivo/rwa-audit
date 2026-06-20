@@ -1,12 +1,12 @@
 //! Optional live-network exchange freeze checks (not run in CI).
 
-use std::path::PathBuf;
-
-use rwa_audit::exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
+use rwa_audit::{AuditContext, RunMode};
 
 #[test]
 #[ignore = "hits GeckoTerminal and Jupiter live APIs"]
 fn live_exchange_freeze_writes_staging_evidence() {
+    use std::path::PathBuf;
+
     let root = std::env::temp_dir().join(format!(
         "rwa-exchange-live-{}",
         std::time::SystemTime::now()
@@ -29,11 +29,13 @@ fn live_exchange_freeze_writes_staging_evidence() {
     let prev = std::env::var("RWA_AUDIT_REPO_ROOT").ok();
     std::env::set_var("RWA_AUDIT_REPO_ROOT", &root);
     let result = (|| -> anyhow::Result<PathBuf> {
-        freeze_exchange_evidence(ExchangeFreezeOptions {
-            live_apis: true,
-            refresh_rwa_xyz: false,
-            panel_date: Some("2026-06-18".into()),
-        })?;
+        let ctx = AuditContext::new()?;
+        rwa_audit::run_module(
+            "exchange",
+            &ctx,
+            RunMode::Live,
+            &rwa_audit::audit::RunExtra::default(),
+        )?;
         let out_dir = rwa_audit::exchange::config::exchange_live_staging_dir();
         assert!(out_dir.join("manifest.json").exists());
         assert!(out_dir

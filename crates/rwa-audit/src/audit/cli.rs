@@ -3,7 +3,9 @@ use std::process;
 
 use anyhow::Result;
 
-use crate::audit::{parse_run_mode, run_module, AuditContext, ExchangeRunArgs, RunExtra, RunMode};
+use crate::audit::{
+    parse_run_mode, resolve_module, run_module, AuditContext, ExchangeRunArgs, RunExtra, RunMode,
+};
 use crate::core::bundle::{list_bundle_specs, promote_audit_bundle, EXCHANGE_BUNDLE};
 use crate::exchange::config::exchange_live_staging_dir;
 use crate::exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
@@ -70,8 +72,8 @@ fn dispatch_run(cmd: RunCommand) -> Result<(), CliError> {
         tx_hashes: cmd.tx_hashes,
         exchange: ExchangeRunArgs {
             refresh_rwa_xyz: cmd.refresh_rwa,
-            promote_bundle: cmd.promote,
         },
+        promote_bundle: cmd.promote,
     };
 
     let bundle = run_module(&cmd.module, &ctx, cmd.mode, &extra)?;
@@ -96,18 +98,30 @@ fn dispatch_freeze(cmd: FreezeCommand) -> Result<(), CliError> {
             println!("Promoted bundle → {}", dest.display());
         }
         FreezeAction::Exchange { live, refresh_rwa } => {
+            // Hold the exchange lock for both live and non-live so concurrent
+            // `freeze exchange` invocations never interleave writes to either
+            // data/exchange-live/ or the non-live staging directory.
+            let exchange_lock =
+                crate::core::bundle::acquire_collect_promote_lock(EXCHANGE_BUNDLE.id)
+                    .map_err(CliError::Runtime)?;
             freeze_exchange_evidence(ExchangeFreezeOptions {
                 live_apis: live,
                 refresh_rwa_xyz: refresh_rwa,
                 panel_date: None,
             })?;
             if live {
+                drop(exchange_lock);
                 println!(
                     "Live exchange evidence written to {}; bundle not promoted",
                     exchange_live_staging_dir().display()
                 );
             } else {
-                let dest = promote_audit_bundle(EXCHANGE_BUNDLE.id)?;
+                let bundle = crate::core::publish::resolve_publish_bundle(EXCHANGE_BUNDLE.id)
+                    .map_err(|e| CliError::Runtime(anyhow::anyhow!("{e}")))?;
+                let dest = crate::core::bundle::promote_publish_bundle_after_collect(
+                    bundle,
+                    exchange_lock,
+                )?;
                 println!("Exchange bundle → {}", dest.display());
             }
         }
@@ -188,14 +202,17 @@ fn validate_run_flags(cmd: &RunCommand) -> Result<(), CliError> {
             "--refresh-rwa is only valid for exchange (module: {module})"
         )));
     }
-    if cmd.promote && module != "exchange" {
-        return Err(usage_error(format!(
-            "--promote is only valid for exchange (module: {module})"
-        )));
+    if cmd.promote {
+        let m = resolve_module(module).map_err(|e| usage_error(e.to_string()))?;
+        if m.publish_bundle().is_none() {
+            return Err(usage_error(format!(
+                "--promote is not supported for {module} (no publish bundle)"
+            )));
+        }
     }
-    if cmd.assets.is_some() && module != "registry" {
+    if cmd.assets.is_some() && !matches!(module, "registry" | "article1") {
         return Err(usage_error(format!(
-            "--assets is only valid for registry (module: {module})"
+            "--assets is only valid for registry and article1 (module: {module})"
         )));
     }
     if let RunMode::Frozen {
@@ -213,14 +230,14 @@ fn validate_run_flags(cmd: &RunCommand) -> Result<(), CliError> {
     }
     if matches!(
         module,
-        "registry" | "activity" | "flow-panel" | "flow-quotes" | "flow-tx"
+        "registry" | "activity" | "article1" | "flow-panel" | "flow-quotes" | "flow-tx"
     ) && !cmd.mode.is_live()
     {
         return Err(usage_error(format!("{module} only supports --mode live")));
     }
-    if module == "exchange" && cmd.mode.is_live() && cmd.promote {
+    if cmd.promote && cmd.mode.is_live() && module == "exchange" {
         return Err(usage_error(
-            "cannot use --promote with exchange --mode live; live output is written to data/exchange-live/ and must not update the publish bundle",
+            "cannot use --promote with exchange --mode live; live output goes to data/exchange-live/ and must not update the publish bundle",
         ));
     }
 
@@ -277,8 +294,9 @@ USAGE:
     rwa-audit freeze <list|promote|exchange> [options]
 
 RUN MODULES:
-    registry      Article 1 contract registry + transfer metrics (--mode live)
-    activity      Article 1 daily activity (--mode live)
+    registry      Article 1 contract registry + transfer metrics (--mode live, no promote)
+    activity      Article 1 daily activity timeseries (--mode live, no promote)
+    article1      Article 1 full evidence: registry + activity, then promote (--mode live)
     flow-panel    Article 2 DEX pool panel (--mode live)
     flow-quotes   Article 2 ParaSwap quotes (--mode live)
     flow-tx       Article 2 tx reconstruction (requires 0x hashes)
@@ -287,9 +305,9 @@ RUN MODULES:
 RUN OPTIONS:
     --mode live|frozen
     --publish-date YYYY-MM-DD   (offline freeze: must match publish fixture 2026-06-12)
-    --assets PATH               (registry YAML, default config/assets/registry_v1.yaml)
+    --assets PATH               (registry YAML; article1 and registry only)
     --refresh-rwa               (exchange: refresh RWA.xyz seed)
-    --promote                   (exchange frozen only: promote publish bundle; not allowed with --mode live)
+    --promote                   (article1, exchange: promote publish bundle after collection)
 
 FREEZE:
     rwa-audit freeze list
@@ -414,6 +432,32 @@ mod tests {
     #[test]
     fn list_run_targets_matches_help_modules() {
         let targets = list_run_targets();
-        assert_eq!(targets.len(), 6);
+        assert_eq!(targets.len(), 7);
+    }
+
+    #[test]
+    fn activity_rejects_promote_no_bundle() {
+        let err = validate_run_flags(
+            &parse_run_command(&mut args("run activity --promote").into_iter().skip(2)).unwrap(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn article1_accepts_promote() {
+        validate_run_flags(
+            &parse_run_command(&mut args("run article1 --promote").into_iter().skip(2)).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn registry_rejects_promote_no_bundle() {
+        let err = validate_run_flags(
+            &parse_run_command(&mut args("run registry --promote").into_iter().skip(2)).unwrap(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
     }
 }

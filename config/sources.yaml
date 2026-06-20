@@ -4,37 +4,46 @@ sources:
     kind: rpc
     ethereum: https://ethereum.publicnode.com
     polygon: https://polygon.publicnode.com
+    rate_limit_ms: 150
     env: []
 
   coingecko:
     kind: http
     base_url: https://api.coingecko.com/api/v3
+    rate_limit_ms: 500
     env: []
 
   ethplorer:
     kind: http
     base_url: https://api.ethplorer.io
+    rate_limit_ms: 500
     env:
       - ETHPLORER_API_KEY  # defaults to freekey when unset
 
   geckoterminal:
     kind: http
     base_url: https://api.geckoterminal.com/api/v2
+    rate_limit_ms: 3500
+    default_headers:
+      accept: application/json
     env: []
 
   paraswap:
     kind: http
-    base_url: https://api.paraswap.io
+    base_url: https://apiv5.paraswap.io
+    rate_limit_ms: 1000
     env: []
 
   jupiter:
     kind: http
     base_url: https://lite-api.jup.ag/swap/v1
+    rate_limit_ms: 500
     env: []
 
   yahoo_finance:
     kind: http
     base_url: https://query1.finance.yahoo.com
+    rate_limit_ms: 500
     env: []
 
   manual_import:
@@ -42,6 +51,12 @@ sources:
     base_path: artifacts/data
     env: []
 
+  rwa_xyz:
+    kind: http
+    base_url: https://app.rwa.xyz
+    rate_limit_ms: 1000
+    env: []
+
 cache:
   enabled: true
-  root: cache/sources
+  root: cache

@@ -5,10 +5,10 @@ Frozen audit bundles are the publish contract. Live collectors write scratch dat
 ## Article 1 — Registry + activity
 
 ```bash
-make collect    # → data/rwa_*.csv
-make activity   # → data/rwa_activity_daily_30d.csv
-cargo run --bin rwa-freeze -- promote article1-registry-2026-06
+cargo run --bin rwa-audit -- run article1 --promote
 ```
+
+Runs registry collection + activity timeseries atomically under a single exclusive lock, then promotes the evidence. The manifest `as_of` / `panel_date` is derived from the on-chain block timestamp of the latest collected block — never from the wall clock or `RWA_AUDIT_FROZEN_AT`. `RWA_AUDIT_FROZEN_AT` only pins the manifest `frozen_at` field (when the promotion ran).
 
 Bundle output: `artifacts/audits/article1-registry-2026-06/{manifest.json,data/,figures/}`
 
@@ -55,11 +55,13 @@ Do not commit `data/exchange-live/` unless intentionally updating numbers after 
 
 ## CI reproducibility
 
-Exchange freeze uses `RWA_AUDIT_FROZEN_AT` when set (CI pins to committed `manifest.json` timestamp).
+Exchange `panel_date` is controlled by `PUBLISH_PANEL_DATE` (offline freeze fixture date) or defaults to today's date for live runs. `RWA_AUDIT_FROZEN_AT` only pins the manifest `frozen_at` field (when the promotion ran) — it does not affect `panel_date` for any module.
+
+Article 1 `panel_date` and `as_of` always come from the on-chain block timestamp of the latest collected block — neither `RWA_AUDIT_FROZEN_AT` nor any other env var can override them.
 
 ```bash
-export RWA_AUDIT_FROZEN_AT="$(jq -r .frozen_at artifacts/data/manifest.json)"
-cargo run --bin rwa-exchange-freeze
+export RWA_AUDIT_FROZEN_AT="$(jq -r .frozen_at artifacts/audits/article3-xstocks-2026-06-12/manifest.json)"
+rwa-audit freeze exchange
 ```
 
 ## Asset registry
