@@ -566,6 +566,102 @@ mod tests {
     }
 
     #[test]
+    fn build_manifest_offline_uses_bundle_audit_id() {
+        let out_dir = config::exchange_publish_dir();
+        let manifest = build_manifest(
+            &crate::exchange::rwa_xyz::PlatformSnapshot {
+                date: "2026-04-20".into(),
+                monthly_transfer_volume_usd: 1.03e9,
+                source_url: "u".into(),
+                accessed_date: "2026-06-12".into(),
+                confidence: "high".into(),
+                caveat: "c".into(),
+                source_type: None,
+                exclude_from_interpolation: None,
+            },
+            &crate::exchange::rwa_xyz::PlatformSnapshot {
+                date: "2026-06-12".into(),
+                monthly_transfer_volume_usd: 1.6e9,
+                source_url: "u".into(),
+                accessed_date: "2026-06-12".into(),
+                confidence: "high".into(),
+                caveat: "c".into(),
+                source_type: None,
+                exclude_from_interpolation: None,
+            },
+            &crate::exchange::bridged::BridgedValueSum {
+                date: "2026-06-11".into(),
+                total_usd: 763.76e6,
+                source_file: "fixtures.csv".into(),
+            },
+            &SymbolPoolAggregate {
+                symbol: "AAPLx".into(),
+                total_tvl_usd: 124_062.35,
+                total_24h_vol_usd: 34_771.14,
+                source_url: "u".into(),
+                pool_count: 1,
+                top_pool_vol_share: None,
+                provenance: None,
+            },
+            &SymbolPoolAggregate {
+                symbol: "TSLAx".into(),
+                total_tvl_usd: 1.0,
+                total_24h_vol_usd: 3.4e6,
+                source_url: "u".into(),
+                pool_count: 1,
+                top_pool_vol_share: None,
+                provenance: None,
+            },
+            &SymbolPoolAggregate {
+                symbol: "SPYx".into(),
+                total_tvl_usd: 1.0,
+                total_24h_vol_usd: 7.1e6,
+                source_url: "u".into(),
+                pool_count: 1,
+                top_pool_vol_share: None,
+                provenance: None,
+            },
+            &JupiterQuoteEvidence {
+                input_mint: "a".into(),
+                output_mint: "b".into(),
+                input_symbol: "USDC".into(),
+                output_symbol: "AAPLx".into(),
+                input_amount_usd: 100_000,
+                input_amount_raw: 100_000_000_000,
+                slippage_bps: 100,
+                price_impact_pct: Some(68.2),
+                out_amount_raw: None,
+                route_labels: vec![],
+                source_url: "u".into(),
+                provenance: None,
+                raw_response: serde_json::json!({}),
+            },
+            68.2,
+            "2026-06-12T00:00:00Z".into(),
+            "2026-06-12",
+            false,
+            &out_dir,
+        );
+        assert_eq!(
+            manifest.audit_id.as_deref(),
+            Some(crate::core::bundle::EXCHANGE_BUNDLE.id)
+        );
+        let bridged_claim = manifest
+            .claims
+            .iter()
+            .find(|c| c.id == "bridged_value_2026_06_11")
+            .unwrap();
+        assert!(bridged_claim.caveat.contains("CSV export"));
+    }
+
+    #[test]
+    fn frozen_at_timestamp_default_is_rfc3339() {
+        std::env::remove_var("RWA_AUDIT_FROZEN_AT");
+        let ts = frozen_at_timestamp();
+        assert!(ts.contains('T'), "should be RFC3339: {ts}");
+    }
+
+    #[test]
     fn validate_publish_targets_fails_on_bad_apr() {
         let empty = SymbolPoolAggregate {
             symbol: "X".into(),

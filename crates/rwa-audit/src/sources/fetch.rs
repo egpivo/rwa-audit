@@ -590,6 +590,38 @@ mod tests {
     }
 
     #[test]
+    fn is_sensitive_query_param_all_variants() {
+        assert!(is_sensitive_query_param("apikey"));
+        assert!(is_sensitive_query_param("api_key"));
+        assert!(is_sensitive_query_param("key"));
+        assert!(is_sensitive_query_param("token"));
+        assert!(is_sensitive_query_param("access_token"));
+        assert!(is_sensitive_query_param("APIKEY"));
+        assert!(!is_sensitive_query_param("query"));
+        assert!(!is_sensitive_query_param("ids"));
+    }
+
+    #[test]
+    fn base_url_without_query_strips_fragment_and_query() {
+        assert_eq!(
+            base_url_without_query("https://example.com/path?q=1&a=2"),
+            "https://example.com/path"
+        );
+        assert_eq!(
+            base_url_without_query("https://example.com/path#section"),
+            "https://example.com/path"
+        );
+        assert_eq!(
+            base_url_without_query("https://example.com/path#section?q=1"),
+            "https://example.com/path"
+        );
+        assert_eq!(
+            base_url_without_query("https://example.com/path"),
+            "https://example.com/path"
+        );
+    }
+
+    #[test]
     fn rpc_fetches_once_and_uses_cache() {
         let server = MockHttpServer::spawn(
             "200 OK",

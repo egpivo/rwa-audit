@@ -219,4 +219,73 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[test]
+    fn load_implied_prices_skips_zero_token_volume() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity2-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             Ondo USDY,USDY,2026-05,0,0,0,0.0,100.0\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(
+            prices.is_empty(),
+            "zero-token rows must not produce a price"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_implied_prices_skips_wrong_month() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity3-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             Ondo USDY,USDY,2026-04,5,2,2,500.0,525.0\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(prices.is_empty(), "only 2026-05 rows should be loaded");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_implied_prices_skips_na_usd() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity4-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             PAXG,PAXG,2026-05,3,2,2,1.0,N/A\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(prices.is_empty(), "N/A USD rows must be skipped");
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

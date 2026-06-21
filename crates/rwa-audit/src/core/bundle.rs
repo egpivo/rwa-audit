@@ -1118,4 +1118,62 @@ mod tests {
         let p = resolve_claim_evidence_path(bundle_root, "artifacts/data/some_data.csv");
         assert_eq!(p, Path::new("/tmp/bundle/data/some_data.csv"));
     }
+
+    #[test]
+    fn safe_remove_skips_when_same_as_keep() {
+        // If previous target == keep, safe_remove_version_dir should not delete anything.
+        let root = std::env::temp_dir().join(format!(
+            "rwa-bundle-safe-same-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let audits_parent = root.join("artifacts/audits");
+        let versions = audits_parent.join(BUNDLE_VERSIONS_DIR);
+        fs::create_dir_all(&versions).unwrap();
+        let version_dir = versions.join("bundle-version-abc");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        // Pass the relative path as link_target and the same dir as keep — should be a no-op.
+        let rel = Path::new(BUNDLE_VERSIONS_DIR).join("bundle-version-abc");
+        safe_remove_version_dir(&audits_parent, &rel, &version_dir);
+        assert!(version_dir.is_dir());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn staging_guard_cleans_up_on_drop() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-staging-guard-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        assert!(dir.is_dir());
+        {
+            let _guard = StagingGuard::new(dir.clone());
+            // guard drops here
+        }
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn staging_guard_disarm_prevents_cleanup() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-staging-disarm-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let guard = StagingGuard::new(dir.clone());
+        guard.disarm();
+        assert!(dir.is_dir());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

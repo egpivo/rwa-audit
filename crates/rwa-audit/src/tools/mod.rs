@@ -134,4 +134,133 @@ mod tests {
     fn unknown_tool_errors() {
         assert!(run_tool("missing", ToolInput::default()).is_err());
     }
+
+    fn make_activity_row(symbol: &str, vol: f64) -> ActivityDailyRow {
+        ActivityDailyRow {
+            symbol: symbol.into(),
+            date: "2026-06-20".into(),
+            volume_usd: vol,
+            unique_senders: 5,
+            include_in_chart: true,
+        }
+    }
+
+    #[test]
+    fn run_tool_activity_surface_with_rows() {
+        let input = ToolInput {
+            activity_rows: vec![make_activity_row("PAXG", 1000.0)],
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_ACTIVITY_SURFACE, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_ACTIVITY_SURFACE);
+    }
+
+    #[test]
+    fn run_tool_activity_surface_empty_is_gap() {
+        let result = run_tool(TOOL_ACTIVITY_SURFACE, ToolInput::default()).unwrap();
+        assert!(!result.gaps.is_empty());
+    }
+
+    #[test]
+    fn run_tool_sender_volume_coverage_missing_input_errors() {
+        let input = ToolInput {
+            sender_volumes: None,
+            ..Default::default()
+        };
+        assert!(run_tool(TOOL_SENDER_VOLUME_COVERAGE, input).is_err());
+    }
+
+    #[test]
+    fn run_tool_sender_volume_coverage_with_empty() {
+        let input = ToolInput {
+            sender_volumes: Some(vec![]),
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_SENDER_VOLUME_COVERAGE, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_SENDER_VOLUME_COVERAGE);
+    }
+
+    #[test]
+    fn run_tool_workflow_signature_with_rows() {
+        let input = ToolInput {
+            activity_rows: vec![make_activity_row("USDY", 500.0)],
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_WORKFLOW_SIGNATURE, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_WORKFLOW_SIGNATURE);
+    }
+
+    #[test]
+    fn run_tool_classify_surface_missing_input_errors() {
+        let input = ToolInput {
+            surface_assets: None,
+            ..Default::default()
+        };
+        assert!(run_tool(TOOL_CLASSIFY_SURFACE, input).is_err());
+    }
+
+    #[test]
+    fn run_tool_classify_surface_with_empty() {
+        let input = ToolInput {
+            surface_assets: Some(vec![]),
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_CLASSIFY_SURFACE, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_CLASSIFY_SURFACE);
+    }
+
+    #[test]
+    fn run_tool_surface_compression_missing_input_errors() {
+        assert!(run_tool(TOOL_SURFACE_COMPRESSION, ToolInput::default()).is_err());
+    }
+
+    #[test]
+    fn run_tool_surface_compression_with_empty() {
+        let input = ToolInput {
+            panel_rows: Some(vec![]),
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_SURFACE_COMPRESSION, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_SURFACE_COMPRESSION);
+    }
+
+    #[test]
+    fn run_tool_metric_equivalence_missing_input_errors() {
+        assert!(run_tool(TOOL_METRIC_EQUIVALENCE, ToolInput::default()).is_err());
+    }
+
+    #[test]
+    fn run_tool_metric_equivalence_with_empty() {
+        let input = ToolInput {
+            panel_rows: Some(vec![]),
+            ..Default::default()
+        };
+        let result = run_tool(TOOL_METRIC_EQUIVALENCE, input).unwrap();
+        assert_eq!(result.tool_id, TOOL_METRIC_EQUIVALENCE);
+    }
+
+    #[test]
+    fn tool_input_builder_methods() {
+        let input = ToolInput::default()
+            .with_coverage_fraction(0.9)
+            .with_top_sender_rank(10);
+        assert!((input.coverage_fraction - 0.9).abs() < f64::EPSILON);
+        assert_eq!(input.top_sender_rank, 10);
+    }
+
+    #[test]
+    fn list_tool_ids_contains_all_tools() {
+        let ids = list_tool_ids();
+        assert_eq!(ids.len(), 6);
+        for tool in [
+            TOOL_ACTIVITY_SURFACE,
+            TOOL_SENDER_VOLUME_COVERAGE,
+            TOOL_WORKFLOW_SIGNATURE,
+            TOOL_CLASSIFY_SURFACE,
+            TOOL_SURFACE_COMPRESSION,
+            TOOL_METRIC_EQUIVALENCE,
+        ] {
+            assert!(ids.contains(&tool), "{tool} missing from list");
+        }
+    }
 }

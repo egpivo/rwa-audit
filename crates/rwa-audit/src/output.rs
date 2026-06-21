@@ -404,6 +404,86 @@ mod tests {
     }
 
     #[test]
+    fn write_holder_metrics_with_data() {
+        let dir = temp_output_dir();
+        fs::create_dir_all(&dir).unwrap();
+
+        write_holder_metrics(
+            &dir,
+            &[crate::models::HolderRow {
+                asset_name: "Test Asset".into(),
+                symbol: "TST".into(),
+                holder_count: "500".into(),
+                top10_concentration_pct: "45.20".into(),
+                top1_concentration_pct: "12.30".into(),
+                data_as_of: "2026-06-20".into(),
+                data_source: "Ethplorer".into(),
+            }],
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(dir.join("rwa_holder_metrics.csv")).unwrap();
+        assert!(content.contains("TST"));
+        assert!(content.contains("500"));
+        assert!(content.contains("45.20"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn write_transfer_metrics_with_non_empty_rows() {
+        let dir = temp_output_dir();
+        fs::create_dir_all(&dir).unwrap();
+
+        write_transfer_metrics(
+            &dir,
+            &[crate::models::TransferRow {
+                asset_name: "Test Asset".into(),
+                symbol: "TST".into(),
+                year_month: "2026-05".into(),
+                transfer_count: 42,
+                unique_senders: 10,
+                unique_receivers: 8,
+                total_volume_tokens: 1_234.5,
+                total_volume_usd_approx: "1234.50".into(),
+            }],
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(dir.join("rwa_transfer_metrics.csv")).unwrap();
+        assert!(content.contains("TST"));
+        assert!(content.contains("2026-05"));
+        assert!(content.contains("42"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn write_mint_burn_metrics_with_non_empty_rows() {
+        let dir = temp_output_dir();
+        fs::create_dir_all(&dir).unwrap();
+
+        write_mint_burn_metrics(
+            &dir,
+            &[crate::models::MintBurnRow {
+                asset_name: "Test Asset".into(),
+                symbol: "TST".into(),
+                year_month: "2026-05".into(),
+                mint_count: 3,
+                mint_volume_tokens: 100.0,
+                burn_count: 1,
+                burn_volume_tokens: 50.0,
+                net_issuance_tokens: 50.0,
+            }],
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(dir.join("rwa_mint_burn_metrics.csv")).unwrap();
+        assert!(content.contains("TST"));
+        assert!(content.contains("2026-05"));
+        assert!(content.contains("100"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn write_activity_daily_and_quality_notes() {
         let dir = temp_output_dir();
         fs::create_dir_all(&dir).unwrap();

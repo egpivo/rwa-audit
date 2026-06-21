@@ -177,4 +177,42 @@ mod tests {
         assert!(!extra.promote_bundle);
         assert!(!extra.exchange.refresh_rwa_xyz);
     }
+
+    #[test]
+    fn run_module_unknown_name_errors() {
+        let ctx = AuditContext::new().unwrap();
+        let err =
+            run_module("not_a_module", &ctx, RunMode::Live, &RunExtra::default()).unwrap_err();
+        assert!(err.to_string().contains("unknown audit module"));
+    }
+
+    #[test]
+    fn run_module_registry_frozen_mode_errors() {
+        let ctx = AuditContext::new().unwrap();
+        let err = run_module(
+            "registry",
+            &ctx,
+            RunMode::Frozen {
+                snapshot_date: None,
+            },
+            &RunExtra::default(),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
+
+    #[test]
+    fn evidence_bundle_fields_are_accessible() {
+        let bundle = EvidenceBundle {
+            module: "test".into(),
+            method: crate::core::manifest::AuditMethod::Registry,
+            mode: RunMode::Live,
+            files_written: vec![],
+            summary: "test summary".into(),
+            panel_date: Some("2026-06-20".into()),
+        };
+        assert_eq!(bundle.module, "test");
+        assert_eq!(bundle.summary, "test summary");
+        assert_eq!(bundle.panel_date.as_deref(), Some("2026-06-20"));
+    }
 }

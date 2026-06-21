@@ -176,6 +176,71 @@ mod tests {
     }
 
     #[test]
+    fn permissioning_from_yaml_missing_file_returns_none() {
+        let result = permissioning_from_yaml("BUIDL", std::path::Path::new("/nonexistent.yaml"));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn permissioning_from_yaml_unknown_symbol_returns_none() {
+        let path = default_registry_path();
+        if !path.exists() {
+            return;
+        }
+        assert!(permissioning_from_yaml("NONEXISTENT_TOKEN", &path).is_none());
+    }
+
+    #[test]
+    fn load_registry_rejects_invalid_address() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-yaml-addr-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bad_addr.yaml");
+        std::fs::write(
+            &path,
+            r#"version: 1
+assets:
+  - asset_name: A
+    symbol: TST
+    category: c
+    chain: Ethereum
+    contract_address: "not_an_address"
+    decimals: 18
+"#,
+        )
+        .unwrap();
+        assert!(load_registry(&path).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_activity_rejects_wrong_version() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-yaml-ver-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("v2.yaml");
+        std::fs::write(
+            &path,
+            r#"version: 2
+assets: []
+"#,
+        )
+        .unwrap();
+        assert!(load_activity(&path).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn rejects_duplicate_symbols_in_yaml() {
         let dir = std::env::temp_dir().join(format!(
             "rwa-yaml-{}",

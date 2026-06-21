@@ -96,6 +96,50 @@ mod tests {
     }
 
     #[test]
+    fn repo_root_via_env_override() {
+        std::env::set_var("RWA_AUDIT_REPO_ROOT", "/tmp/test-override");
+        let root = repo_root();
+        std::env::remove_var("RWA_AUDIT_REPO_ROOT");
+        assert_eq!(root, std::path::Path::new("/tmp/test-override"));
+    }
+
+    #[test]
+    fn path_to_repo_relative_strips_root_prefix() {
+        let root = repo_root();
+        let abs = root.join("some/file.json");
+        let rel = path_to_repo_relative(&abs);
+        assert_eq!(rel, "some/file.json");
+    }
+
+    #[test]
+    fn path_to_repo_relative_falls_back_to_abs() {
+        let abs = std::path::Path::new("/tmp/absolute/path.csv");
+        let result = path_to_repo_relative(abs);
+        assert!(result.contains("tmp"));
+        assert!(result.contains("path.csv"));
+    }
+
+    #[test]
+    fn config_dir_ends_with_config() {
+        assert!(config_dir().ends_with("config"));
+    }
+
+    #[test]
+    fn audits_dir_ends_with_artifacts_audits() {
+        assert!(audits_dir().ends_with("artifacts/audits"));
+    }
+
+    #[test]
+    fn artifacts_data_dir_ends_with_artifacts_data() {
+        assert!(artifacts_data_dir().ends_with("artifacts/data"));
+    }
+
+    #[test]
+    fn data_dir_ends_with_data() {
+        assert!(data_dir().ends_with("data"));
+    }
+
+    #[test]
     fn ensure_dir_creates_nested_path() {
         let base = std::env::temp_dir().join(format!(
             "rwa-audit-config-{}",

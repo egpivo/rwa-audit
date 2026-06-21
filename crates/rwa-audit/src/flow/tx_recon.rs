@@ -158,4 +158,23 @@ mod tests {
         let t = "0x000000000000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         assert!(topic_address(t).ends_with("deadbeef"));
     }
+
+    #[test]
+    fn topic_address_short_string_does_not_panic() {
+        let result = topic_address("0xabcd");
+        assert!(result.starts_with("0x"));
+    }
+
+    #[test]
+    fn topic_address_empty_does_not_panic() {
+        let result = topic_address("");
+        assert_eq!(result, "0x");
+    }
+
+    #[test]
+    fn topic_address_lowercase() {
+        let t = "0x000000000000000000000000ABCDEF1234567890ABCDEF1234567890ABCDEF12";
+        let addr = topic_address(t);
+        assert_eq!(addr, addr.to_lowercase());
+    }
 }

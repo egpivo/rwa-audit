@@ -309,4 +309,33 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[test]
+    fn write_panel_summary_with_all_none_optional_fields() {
+        let dir = temp_dir();
+        write_panel_summary(
+            &dir,
+            &[PanelSummary {
+                symbol: "AAPLx".into(),
+                panel_start: "2026-03-01".into(),
+                panel_end: "2026-05-31".into(),
+                total_days: 91,
+                active_volume_days: 60,
+                pool_count_listed: 2,
+                median_daily_volume_usd: 5000.0,
+                median_top_pool_volume_share: 0.85,
+                days_top_share_at_or_above_99pct: 10,
+                volume_cv: None,
+                volume_spike_ratio: None,
+                corr_gold_z_vs_routing_dispersion_z: None,
+                corr_volume_z_vs_top_share_z: None,
+            }],
+        )
+        .unwrap();
+        let md = std::fs::read_to_string(dir.join("panel_summary.md")).unwrap();
+        assert!(md.contains("AAPLx"));
+        assert!(!md.contains("Volume CV"));
+        assert!(!md.contains("spike ratio"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

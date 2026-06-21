@@ -702,4 +702,116 @@ mod tests {
         let err = parse_run_command(&mut iter).unwrap_err();
         assert!(matches!(err, CliError::Usage(_)));
     }
+
+    #[test]
+    fn parse_run_mode_invalid_value_is_error() {
+        let mut iter = args("run registry --mode hybrid").into_iter().skip(2);
+        let err = parse_run_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_article1_with_frozen_is_error() {
+        let cmd = RunCommand {
+            module: "article1".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+        assert!(err.to_string().contains("live"));
+    }
+
+    #[test]
+    fn validate_flow_quotes_with_frozen_is_error() {
+        let cmd = RunCommand {
+            module: "flow-quotes".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_flow_tx_with_frozen_is_error() {
+        let cmd = RunCommand {
+            module: "flow-tx".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec!["0xabc".to_string()],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_registry_with_frozen_is_error() {
+        let cmd = RunCommand {
+            module: "registry".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_freeze_exchange_default_no_flags() {
+        let mut iter = args("freeze exchange").into_iter().skip(2);
+        let cmd = parse_freeze_command(&mut iter).unwrap();
+        assert!(matches!(
+            cmd.action,
+            FreezeAction::Exchange {
+                live: false,
+                refresh_rwa: false
+            }
+        ));
+    }
+
+    #[test]
+    fn cli_error_usage_display() {
+        let e = CliError::Usage("test message".into());
+        assert_eq!(e.to_string(), "test message");
+    }
+
+    #[test]
+    fn parse_run_refresh_rwa_flag() {
+        let mut iter = args("run exchange --refresh-rwa").into_iter().skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        assert!(cmd.refresh_rwa);
+    }
+
+    #[test]
+    fn parse_run_promote_flag() {
+        let mut iter = args("run article1 --promote").into_iter().skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        assert!(cmd.promote);
+    }
+
+    #[test]
+    fn run_cli_unknown_top_level_is_usage_error() {
+        let err = run_cli(args("unknown-cmd")).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+        assert!(err.to_string().contains("unknown command"));
+    }
 }

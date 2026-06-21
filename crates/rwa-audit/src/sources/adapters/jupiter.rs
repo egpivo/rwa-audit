@@ -270,6 +270,22 @@ mod tests {
     }
 
     #[test]
+    fn adapter_rejects_rpc_requests() {
+        let ctx = crate::sources::context::SourceContext::new().unwrap();
+        let err = JupiterAdapter
+            .fetch(
+                &ctx,
+                crate::sources::types::SourceRequest::Rpc {
+                    url: "http://example.test".into(),
+                    method: "eth_blockNumber".into(),
+                    params: serde_json::json!([]),
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("expects HttpGet"));
+    }
+
+    #[test]
     fn parse_missing_out_amount_returns_none() {
         let ev = JupiterAdapter::parse_quote_evidence(
             serde_json::json!({"priceImpactPct": "1.5"}),

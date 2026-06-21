@@ -384,6 +384,34 @@ mod tests {
     }
 
     #[test]
+    fn token_pools_empty_first_page_returns_empty() {
+        // When the first page returns empty data array, the loop breaks immediately
+        let body = r#"{"data":[]}"#;
+        let server = MockHttpServer::spawn("200 OK", "application/json", body);
+        let ctx = context_for_gecko(&server.url);
+        let adapter = GeckoTerminalAdapter;
+        let pools = adapter.token_pools(&ctx, "solana", "0xtoken123").unwrap();
+        server.request();
+        assert!(pools.is_empty());
+    }
+
+    #[test]
+    fn adapter_rejects_rpc_request() {
+        let ctx = context_for_gecko("http://example.test");
+        let err = GeckoTerminalAdapter
+            .fetch(
+                &ctx,
+                crate::sources::types::SourceRequest::Rpc {
+                    url: "http://example.test".into(),
+                    method: "eth_blockNumber".into(),
+                    params: serde_json::json!([]),
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("expects HttpGet"));
+    }
+
+    #[test]
     fn solana_symbol_pool_aggregate_from_mock() {
         let body =
             r#"{"data":[{"attributes":{"reserve_in_usd":"5000","volume_usd":{"h24":"3000"}}}]}"#;

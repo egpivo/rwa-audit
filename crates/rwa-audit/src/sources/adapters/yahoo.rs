@@ -156,6 +156,26 @@ mod tests {
     }
 
     #[test]
+    fn parse_chart_first_row_in_range_has_zero_abs_return() {
+        // When the first timestamp IS within [start, end], prev_close is None → abs_return = 0.0
+        let body = json!({
+            "chart": {
+                "result": [{
+                    "timestamp": [1772323200, 1772409600],
+                    "indicators": {"quote": [{"close": [100.0, 110.0]}]}
+                }]
+            }
+        });
+        // Both timestamps are within the window so the very first row has no prev_close
+        let rows =
+            YahooFinanceAdapter::parse_gc_chart(&body, date("2026-02-28"), date("2026-03-10"))
+                .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!((rows[0].abs_return - 0.0).abs() < f64::EPSILON);
+        assert!((rows[1].abs_return - 0.1).abs() < 1e-10);
+    }
+
+    #[test]
     fn adapter_rejects_rpc_requests() {
         let ctx = SourceContext::new().unwrap();
         let err = YahooFinanceAdapter

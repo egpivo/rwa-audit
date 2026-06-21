@@ -667,4 +667,48 @@ mod tests {
         }
         .is_live());
     }
+
+    #[test]
+    fn exchange_run_mode_frozen_none_snapshot() {
+        let opts = exchange_run_mode(&RunMode::Frozen {
+            snapshot_date: None,
+        });
+        assert!(!opts.live_apis);
+        assert!(opts.panel_date.is_none());
+    }
+
+    #[test]
+    fn required_sources_have_specific_content() {
+        assert!(RegistryModule
+            .required_sources()
+            .contains(&crate::sources::SourceId::CoinGecko));
+        assert!(ActivityModule
+            .required_sources()
+            .contains(&crate::sources::SourceId::PublicNodeRpc));
+        assert!(FlowPanelModule
+            .required_sources()
+            .contains(&crate::sources::SourceId::GeckoTerminal));
+        assert!(ExchangeModule
+            .required_sources()
+            .contains(&crate::sources::SourceId::Jupiter));
+    }
+
+    #[test]
+    fn flow_tx_requires_live_mode_even_with_hashes() {
+        let ctx = AuditContext::new().unwrap();
+        let extra = RunExtra {
+            tx_hashes: vec!["0xabc".into()],
+            ..Default::default()
+        };
+        let err = FlowTxModule
+            .run(
+                &ctx,
+                RunMode::Frozen {
+                    snapshot_date: None,
+                },
+                &extra,
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
 }

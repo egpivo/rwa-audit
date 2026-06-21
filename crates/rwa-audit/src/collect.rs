@@ -343,4 +343,39 @@ mod tests {
     fn round_metric_four_decimal_places() {
         assert!((round_metric(1.234567) - 1.2346).abs() < f64::EPSILON);
     }
+
+    #[test]
+    fn resolve_price_usd_both_none_returns_none() {
+        let (price, note) = resolve_price_usd(None, None);
+        assert!(price.is_none());
+        assert!(note.is_none());
+    }
+
+    #[test]
+    fn holder_concentration_empty_slice_returns_na() {
+        let (top10, top1) = holder_concentration(&[]);
+        assert_eq!(top10, "N/A");
+        assert_eq!(top1, "N/A");
+    }
+
+    #[test]
+    fn holder_concentration_ignores_entries_without_share_key() {
+        use serde_json::json;
+        let holders = vec![json!({"address": "0xabc"}), json!({"share": 30.0})];
+        let (top10, top1) = holder_concentration(&holders);
+        assert_eq!(top10, "30.00");
+        assert_eq!(top1, "30.00");
+    }
+
+    #[test]
+    fn total_supply_tokens_from_raw_zero_decimals() {
+        let t = total_supply_tokens_from_raw(Some(1_000_000), 0).unwrap();
+        assert!((t - 1_000_000.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn history_from_block_saturates_at_zero() {
+        let from = history_from_block(10, 12, 100);
+        assert_eq!(from, 0);
+    }
 }
