@@ -359,3 +359,146 @@ fn count_csv_data_rows(path: &Path) -> Result<usize> {
         .saturating_sub(1);
     Ok(rows)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(label: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "rwa-publish-{label}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn write_registry_fixtures(data_dir: &Path) {
+        for file in REGISTRY_BUNDLE.data_files {
+            let contents = if *file == "rwa_data_quality_notes.md" {
+                "# notes\n".to_string()
+            } else if *file == "rwa_activity_daily_30d.csv" {
+                "date,symbol\n2026-06-18,A\n2026-06-20,B\n2026-06-19,C\n".to_string()
+            } else {
+                "header\nvalue\n".to_string()
+            };
+            std::fs::write(data_dir.join(file), contents).unwrap();
+        }
+    }
+
+    #[test]
+    fn publish_bundle_accessors_and_resolution_match_specs() {
+        let exchange = resolve_publish_bundle(EXCHANGE_BUNDLE.id).unwrap();
+        assert_eq!(exchange.id(), EXCHANGE_BUNDLE.id);
+        assert_eq!(exchange.legacy_source(), "artifacts/data");
+        assert_eq!(exchange.manifest_filename(), "manifest.json");
+        assert!(!exchange.data_files().is_empty());
+        assert_eq!(exchange.figure_files(), ["xstocks_surface_snapshot.png"]);
+
+        let registry = resolve_publish_bundle(REGISTRY_BUNDLE.id).unwrap();
+        assert_eq!(registry.id(), REGISTRY_BUNDLE.id);
+        assert_eq!(list_publish_bundles().len(), 2);
+        assert!(matches!(
+            resolve_publish_bundle("missing"),
+            Err(FreezeError::UnknownAudit(_))
+        ));
+    }
+
+    #[test]
+    fn registry_validation_rejects_missing_and_malformed_dates() {
+        let bundle = RegistryPublishBundle;
+        assert!(bundle.validate_before_promote("", true).is_err());
+        assert!(bundle.validate_before_promote("2026-06", true).is_err());
+        assert!(bundle.validate_before_promote("2026-06-20", true).is_ok());
+        assert!(bundle.check_standalone_promote_allowed().is_err());
+    }
+
+    #[test]
+    fn registry_manifest_uses_latest_activity_date_and_counts_rows() {
+        let root = temp_dir("registry-manifest");
+        let data_dir = root.join("data");
+        let bundle_dir = root.join("bundle");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::create_dir_all(&bundle_dir).unwrap();
+        write_registry_fixtures(&data_dir);
+
+        RegistryPublishBundle
+            .write_generated_manifest(&bundle_dir, &data_dir)
+            .unwrap();
+        let manifest = load_manifest(&bundle_dir.join("manifest.json")).unwrap();
+
+        assert_eq!(manifest.panel_date, "2026-06-20");
+        assert_eq!(
+            manifest.methods,
+            [AuditMethod::Registry, AuditMethod::Activity]
+        );
+        assert_eq!(manifest.claims.len(), 5);
+        assert!(manifest
+            .claims
+            .iter()
+            .all(|claim| claim.as_of == "2026-06-20"));
+        assert!(manifest
+            .claims
+            .iter()
+            .any(|claim| claim.id == "activity_timeseries" && claim.value_display == "3 rows"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn registry_manifest_rejects_empty_activity_and_missing_evidence() {
+        let root = temp_dir("registry-errors");
+        let data_dir = root.join("data");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        write_registry_fixtures(&data_dir);
+
+        std::fs::write(data_dir.join("rwa_activity_daily_30d.csv"), "date,symbol\n").unwrap();
+        assert!(read_max_activity_date(&data_dir).is_err());
+
+        std::fs::write(
+            data_dir.join("rwa_activity_daily_30d.csv"),
+            "date,symbol\n2026-06-20,A\n",
+        )
+        .unwrap();
+        std::fs::remove_file(data_dir.join("rwa_holder_metrics.csv")).unwrap();
+        assert!(build_registry_claims(REGISTRY_BUNDLE.id, &data_dir, "2026-06-20").is_err());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn default_materialization_requires_prepared_manifest() {
+        struct PreparedOnly;
+        static SPEC: AuditBundleSpec = AuditBundleSpec {
+            id: "prepared-only",
+            legacy_source: "data",
+            manifest_filename: "manifest.json",
+            data_files: &[],
+            figure_files: &[],
+        };
+        impl PublishBundle for PreparedOnly {
+            fn spec(&self) -> &'static AuditBundleSpec {
+                &SPEC
+            }
+
+            fn prepare_manifest(&self, _src_root: &Path) -> Result<Option<AuditManifest>> {
+                Ok(None)
+            }
+        }
+
+        let root = temp_dir("prepared-only");
+        assert!(PreparedOnly
+            .materialize_manifest(&root, &root, None)
+            .is_err());
+        assert_eq!(
+            PreparedOnly.panel_date("2026-06-20T01:02:03Z"),
+            "2026-06-20"
+        );
+        assert!(PreparedOnly.check_standalone_promote_allowed().is_ok());
+        assert!(PreparedOnly.validate_before_promote("", false).is_ok());
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

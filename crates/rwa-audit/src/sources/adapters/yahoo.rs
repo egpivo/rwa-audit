@@ -98,3 +98,76 @@ impl YahooFinanceAdapter {
         Ok(rows)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn date(raw: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(raw, "%Y-%m-%d").unwrap()
+    }
+
+    #[test]
+    fn parses_chart_filters_window_and_computes_returns() {
+        let body = json!({
+            "chart": {
+                "result": [{
+                    "timestamp": [1772323200, 1772409600, 1772496000, 1772582400],
+                    "indicators": {"quote": [{"close": [100.0, 110.0, null, 99.0]}]}
+                }]
+            }
+        });
+
+        let rows =
+            YahooFinanceAdapter::parse_gc_chart(&body, date("2026-03-02"), date("2026-03-04"))
+                .unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].date, date("2026-03-02"));
+        assert!((rows[0].abs_return - 0.1).abs() < 1e-12);
+        assert_eq!(rows[1].date, date("2026-03-04"));
+        assert!((rows[1].abs_return - 0.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn parse_chart_rejects_missing_or_invalid_fields() {
+        assert!(YahooFinanceAdapter::parse_gc_chart(
+            &json!({"chart": {"result": []}}),
+            date("2026-03-01"),
+            date("2026-03-04")
+        )
+        .is_err());
+
+        let invalid_ts = json!({
+            "chart": {
+                "result": [{
+                    "timestamp": ["bad"],
+                    "indicators": {"quote": [{"close": [100.0]}]}
+                }]
+            }
+        });
+        assert!(YahooFinanceAdapter::parse_gc_chart(
+            &invalid_ts,
+            date("2026-03-01"),
+            date("2026-03-04")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn adapter_rejects_rpc_requests() {
+        let ctx = SourceContext::new().unwrap();
+        let err = YahooFinanceAdapter
+            .fetch(
+                &ctx,
+                SourceRequest::Rpc {
+                    url: "http://example.test".into(),
+                    method: "eth_blockNumber".into(),
+                    params: json!([]),
+                },
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("expects HttpGet"));
+    }
+}
