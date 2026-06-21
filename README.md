@@ -1,5 +1,8 @@
 # rwa-audit
 
+[![CI](https://github.com/egpivo/rwa-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/egpivo/rwa-audit/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/egpivo/rwa-audit/graph/badge.svg?token=I8SIVVfoLf)](https://codecov.io/gh/egpivo/rwa-audit)
+
 Rust tooling to collect and audit tokenized real-world asset (RWA) evidence. Pulls on-chain data, DEX pool snapshots, and exchange quotes; scores verifiable claims against stated surfaces; writes versioned publish bundles.
 
 ![Architecture](artifacts/figures/architecture.png)
