@@ -1,9 +1,9 @@
 # RWA On-Chain Feasibility Study
 ## Tokenized Real World Assets: Data Availability, Transfer Patterns, and Analytical Constraints
 
-**Date:** June 2, 2026  
-**Data Coverage:** December 2025 – June 2, 2026 (approximately 6 months)  
-**Assets Studied:** 11 contracts across 5 categories (Ethereum and Polygon)  
+**Date:** June 2, 2026
+**Data Coverage:** December 2025 – June 2, 2026 (approximately 6 months)
+**Assets Studied:** 11 contracts across 5 categories (Ethereum and Polygon)
 **Data Sources:** publicnode.com RPC, mevblocker.io RPC, Ethplorer API (freekey), CoinGecko API (free tier)
 
 ---

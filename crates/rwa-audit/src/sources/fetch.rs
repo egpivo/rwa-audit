@@ -569,19 +569,21 @@ mod tests {
     fn gecko_server_error_propagates_as_err() {
         let server =
             MockHttpServer::spawn("500 Internal Server Error", "application/json", r#"{}"#);
-        let ctx = context_for(SourceId::GeckoTerminal, &server.url, ResponseCache::disabled());
-        let err =
-            http_get_gecko(&GeckoTerminalAdapter, &ctx, &server.url, &[]).unwrap_err();
+        let ctx = context_for(
+            SourceId::GeckoTerminal,
+            &server.url,
+            ResponseCache::disabled(),
+        );
+        let err = http_get_gecko(&GeckoTerminalAdapter, &ctx, &server.url, &[]).unwrap_err();
         assert!(err.to_string().contains("500"));
         server.request();
     }
 
     #[test]
     fn text_get_requires_profile_to_be_registered() {
-        let ctx =
-            SourceContext::with_registry(SourceRegistry::from_profiles(HashMap::new()))
-                .unwrap()
-                .with_cache(ResponseCache::disabled());
+        let ctx = SourceContext::with_registry(SourceRegistry::from_profiles(HashMap::new()))
+            .unwrap()
+            .with_cache(ResponseCache::disabled());
         let err =
             http_get_text_cached(SourceId::RwaXyz, &ctx, "https://example.com", &[]).unwrap_err();
         assert!(!err.to_string().is_empty());

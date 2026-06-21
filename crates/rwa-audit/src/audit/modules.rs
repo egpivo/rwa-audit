@@ -501,7 +501,9 @@ mod tests {
         let err = FlowPanelModule
             .run(
                 &ctx,
-                RunMode::Frozen { snapshot_date: None },
+                RunMode::Frozen {
+                    snapshot_date: None,
+                },
                 &RunExtra::default(),
             )
             .unwrap_err();
@@ -514,7 +516,9 @@ mod tests {
         let err = FlowQuotesModule
             .run(
                 &ctx,
-                RunMode::Frozen { snapshot_date: None },
+                RunMode::Frozen {
+                    snapshot_date: None,
+                },
                 &RunExtra::default(),
             )
             .unwrap_err();

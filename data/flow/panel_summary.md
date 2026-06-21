@@ -23,4 +23,3 @@
 - Days with top-pool share ≥ 99%: 58
 - Volume CV: 1.68
 - Volume spike ratio (max/median): 28.7×
-
