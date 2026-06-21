@@ -70,6 +70,6 @@ jobs:
       - name: Reproduce exchange freeze (deterministic timestamp)
         run: |
           export RWA_AUDIT_FROZEN_AT="$(jq -r .frozen_at artifacts/data/manifest.json)"
-          cargo run --quiet --bin rwa-exchange-freeze
+          cargo run --quiet --bin rwa-audit -- freeze exchange
           git diff --exit-code artifacts/data/manifest.json \
             artifacts/data/depth_vs_volume_panel_publish.csv
