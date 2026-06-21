@@ -273,4 +273,100 @@ mod tests {
             &json!([{"fromBlock": "0x1"}])
         ));
     }
+
+    #[test]
+    fn is_volatile_rpc_eth_call_with_latest() {
+        assert!(is_volatile_rpc("eth_call", &json!([{}, "latest"])));
+    }
+
+    #[test]
+    fn is_volatile_rpc_eth_call_with_block_number_is_not_volatile() {
+        assert!(!is_volatile_rpc("eth_call", &json!([{}, "0x1234567"])));
+    }
+
+    #[test]
+    fn is_volatile_rpc_eth_get_block_by_number_non_latest() {
+        assert!(!is_volatile_rpc(
+            "eth_getBlockByNumber",
+            &json!(["0xabcdef", false])
+        ));
+    }
+
+    #[test]
+    fn is_volatile_rpc_unknown_method() {
+        assert!(!is_volatile_rpc(
+            "eth_getBalance",
+            &json!(["0xaddr", "latest"])
+        ));
+    }
+
+    #[test]
+    fn live_collection_cache_has_ttl_and_bypass() {
+        let cache = ResponseCache::live_collection();
+        assert!(cache.is_enabled());
+        assert!(cache.bypass_volatile);
+        assert!(cache.default_ttl.is_some());
+    }
+
+    #[test]
+    fn key_from_url_differs_by_query() {
+        let k1 = ResponseCache::key_from_url("https://example.com", &[("a", "1")]);
+        let k2 = ResponseCache::key_from_url("https://example.com", &[("a", "2")]);
+        let k3 = ResponseCache::key_from_url("https://example.com", &[]);
+        assert_ne!(k1, k2);
+        assert_ne!(k1, k3);
+        assert_eq!(k1.len(), 64);
+    }
+
+    #[test]
+    fn body_sha256_is_deterministic_hex() {
+        let b = json!({"key": "value"});
+        let h1 = ResponseCache::body_sha256(&b);
+        let h2 = ResponseCache::body_sha256(&b);
+        assert_eq!(h1, h2);
+        assert_eq!(h1.len(), 64);
+        assert_ne!(h1, ResponseCache::body_sha256(&json!({"key": "other"})));
+    }
+
+    #[test]
+    fn get_rpc_non_volatile_returns_cached_value() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-cache-rpc-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let cache = ResponseCache::new(dir.clone()).with_bypass_volatile(true);
+        let params = json!(["0xabc", false]);
+        let body = json!({"result": {"number": "0xabc"}});
+        cache
+            .put_rpc(
+                "eth_getBlockByNumber",
+                &params,
+                SourceId::PublicNodeRpc,
+                "k1",
+                &body,
+            )
+            .unwrap();
+        let hit = cache.get_rpc(
+            "eth_getBlockByNumber",
+            &params,
+            SourceId::PublicNodeRpc,
+            "k1",
+        );
+        assert_eq!(hit.unwrap(), body);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn key_from_rpc_stable() {
+        let k1 = ResponseCache::key_from_rpc("https://eth.rpc", "eth_call", &json!([{}, "latest"]));
+        let k2 = ResponseCache::key_from_rpc("https://eth.rpc", "eth_call", &json!([{}, "latest"]));
+        assert_eq!(k1, k2);
+        assert_ne!(
+            k1,
+            ResponseCache::key_from_rpc("https://eth.rpc", "eth_call", &json!([{}, "0x1"]))
+        );
+    }
 }

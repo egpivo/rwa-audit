@@ -81,4 +81,26 @@ mod tests {
         let body = json!({"other": {"usd": 2.0}});
         assert!(CoinGeckoAdapter::parse_price_usd("missing", &body).is_none());
     }
+
+    #[test]
+    fn parse_price_usd_returns_some_when_id_matches() {
+        let body = json!({"bitcoin": {"usd": 65432.1}});
+        let price = CoinGeckoAdapter::parse_price_usd("bitcoin", &body).unwrap();
+        assert!((price - 65432.1).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_price_usd_missing_usd_key_returns_none() {
+        let body = json!({"bitcoin": {"eur": 60000.0}});
+        assert!(CoinGeckoAdapter::parse_price_usd("bitcoin", &body).is_none());
+    }
+
+    #[test]
+    fn coingecko_adapter_id_is_coingecko() {
+        use crate::sources::adapter::SourceAdapter;
+        assert_eq!(
+            CoinGeckoAdapter.id(),
+            crate::sources::types::SourceId::CoinGecko
+        );
+    }
 }

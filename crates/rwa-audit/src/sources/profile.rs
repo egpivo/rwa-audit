@@ -224,4 +224,129 @@ cache:
 "#;
         assert!(parse_sources_yaml(yaml).is_err());
     }
+
+    #[test]
+    fn parse_sources_yaml_rpc_kind() {
+        let yaml = r#"
+sources:
+  publicnode_rpc:
+    kind: rpc
+    ethereum: https://eth.publicnode.com
+    polygon: https://poly.publicnode.com
+"#;
+        let cfg = parse_sources_yaml(yaml).unwrap();
+        let p = cfg.profiles.get(&SourceId::PublicNodeRpc).unwrap();
+        assert_eq!(p.kind, SourceKind::Rpc);
+        assert!(p.rpc_endpoints.contains_key("ethereum"));
+        assert!(p.rpc_endpoints.contains_key("polygon"));
+    }
+
+    #[test]
+    fn parse_sources_yaml_file_kind() {
+        let yaml = r#"
+sources:
+  manual_import:
+    kind: file
+    base_path: data/manual
+"#;
+        let cfg = parse_sources_yaml(yaml).unwrap();
+        let p = cfg.profiles.get(&SourceId::ManualImport).unwrap();
+        assert_eq!(p.kind, SourceKind::File);
+        assert_eq!(p.base_path.as_deref(), Some(Path::new("data/manual")));
+    }
+
+    #[test]
+    fn parse_sources_yaml_unknown_source_id_errors() {
+        let yaml = r#"
+sources:
+  not_a_source:
+    kind: http
+    base_url: https://example.com
+"#;
+        assert!(parse_sources_yaml(yaml).is_err());
+    }
+
+    #[test]
+    fn source_profile_http_base_ok_and_err() {
+        let profile_with = SourceProfile {
+            id: SourceId::CoinGecko,
+            kind: SourceKind::Http,
+            base_url: Some("https://api.coingecko.com".into()),
+            rpc_endpoints: HashMap::new(),
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 500,
+            default_headers: HashMap::new(),
+        };
+        assert_eq!(
+            profile_with.http_base().unwrap(),
+            "https://api.coingecko.com"
+        );
+
+        let profile_none = SourceProfile {
+            id: SourceId::ManualImport,
+            kind: SourceKind::File,
+            base_url: None,
+            rpc_endpoints: HashMap::new(),
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        };
+        assert!(profile_none.http_base().is_err());
+    }
+
+    #[test]
+    fn source_profile_rpc_url_chain_normalization() {
+        let mut rpc_endpoints = HashMap::new();
+        rpc_endpoints.insert("ethereum".into(), "https://eth.rpc.test".into());
+        rpc_endpoints.insert("polygon".into(), "https://poly.rpc.test".into());
+        let profile = SourceProfile {
+            id: SourceId::PublicNodeRpc,
+            kind: SourceKind::Rpc,
+            base_url: None,
+            rpc_endpoints,
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 150,
+            default_headers: HashMap::new(),
+        };
+        assert_eq!(profile.rpc_url("Ethereum").unwrap(), "https://eth.rpc.test");
+        assert_eq!(profile.rpc_url("ethereum").unwrap(), "https://eth.rpc.test");
+        assert_eq!(profile.rpc_url("Polygon").unwrap(), "https://poly.rpc.test");
+        assert!(profile.rpc_url("solana").is_err());
+    }
+
+    #[test]
+    fn parse_sources_yaml_with_rate_limit_and_headers() {
+        let yaml = r#"
+sources:
+  coingecko:
+    kind: http
+    base_url: https://api.coingecko.com
+    rate_limit_ms: 1234
+    default_headers:
+      x-cg-api-key: testkey
+"#;
+        let cfg = parse_sources_yaml(yaml).unwrap();
+        let p = cfg.profiles.get(&SourceId::CoinGecko).unwrap();
+        assert_eq!(p.rate_limit_ms, 1234);
+        assert_eq!(p.default_headers.get("x-cg-api-key").unwrap(), "testkey");
+    }
+
+    #[test]
+    fn parse_sources_yaml_cache_config() {
+        let yaml = r#"
+sources:
+  coingecko:
+    kind: http
+    base_url: https://api.coingecko.com
+cache:
+  enabled: false
+  root: /tmp/mycache
+"#;
+        let cfg = parse_sources_yaml(yaml).unwrap();
+        assert!(!cfg.cache.enabled);
+        assert_eq!(cfg.cache.root, PathBuf::from("/tmp/mycache"));
+    }
 }

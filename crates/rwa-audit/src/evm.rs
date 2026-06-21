@@ -182,4 +182,67 @@ mod tests {
         let log = json!({"topics": ["0xabc"], "data": "0x1"});
         assert!(parse_transfer_log(&log, None, None, 12).is_none());
     }
+
+    #[test]
+    fn parse_transfer_log_empty_data_is_zero_value() {
+        let log = transfer_log("0xaaa1", "0xbbb2", "0x", "1704067200", "0x1");
+        let parsed = parse_transfer_log(&log, None, None, 12).unwrap();
+        assert_eq!(parsed.value, 0);
+    }
+
+    #[test]
+    fn parse_transfer_log_hex_timestamp() {
+        let log = json!({
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                "0x0000000000000000000000000000000000000001",
+                "0x0000000000000000000000000000000000000002",
+            ],
+            "data": "0x64",
+            "timeStamp": "0x659e7e00",  // hex-encoded timestamp
+            "blockNumber": "0x100",
+        });
+        let parsed = parse_transfer_log(&log, None, None, 12).unwrap();
+        assert_eq!(parsed.value, 100);
+        assert!(!parsed.year_month.is_empty());
+    }
+
+    #[test]
+    fn parse_transfer_log_no_timestamp_no_anchor_returns_none() {
+        let log = json!({
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                "0x0000000000000000000000000000000000000001",
+                "0x0000000000000000000000000000000000000002",
+            ],
+            "data": "0x1",
+            "blockNumber": "0x1",
+        });
+        assert!(parse_transfer_log(&log, None, None, 12).is_none());
+    }
+
+    #[test]
+    fn parse_transfer_log_zero_block_with_anchor_returns_none() {
+        let log = json!({
+            "topics": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                "0x0000000000000000000000000000000000000001",
+                "0x0000000000000000000000000000000000000002",
+            ],
+            "data": "0x1",
+        });
+        // No blockNumber → block_number = 0; anchor provided but block_number == 0 → None
+        assert!(parse_transfer_log(&log, Some(1_000_000), Some(1000), 12).is_none());
+    }
+
+    #[test]
+    fn decode_uint256_large_value() {
+        let val = decode_uint256(Some("0xffffffffffffffffffffffffffffffff")).unwrap();
+        assert_eq!(val, u128::MAX);
+    }
+
+    #[test]
+    fn decode_uint256_non_hex_returns_none() {
+        assert!(decode_uint256(Some("0xzzzz")).is_none());
+    }
 }

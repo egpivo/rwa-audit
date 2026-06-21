@@ -144,4 +144,94 @@ mod tests {
         let reg = SourceRegistry::from_profiles(std::collections::HashMap::new());
         assert!(reg.resolve_adapter(SourceId::CoinGecko).is_err());
     }
+
+    fn make_reg_with_ids(ids: &[SourceId]) -> SourceRegistry {
+        use super::super::profile::{SourceKind, SourceProfile};
+        use std::collections::HashMap;
+        let mut profiles = HashMap::new();
+        for &id in ids {
+            profiles.insert(
+                id,
+                SourceProfile {
+                    id,
+                    kind: SourceKind::Http,
+                    base_url: Some("https://example.com".into()),
+                    rpc_endpoints: HashMap::new(),
+                    base_path: None,
+                    env_keys: vec![],
+                    rate_limit_ms: 0,
+                    default_headers: HashMap::new(),
+                },
+            );
+        }
+        SourceRegistry::from_profiles(profiles)
+    }
+
+    #[test]
+    fn resolve_adapter_all_valid_ids() {
+        let ids = [
+            SourceId::PublicNodeRpc,
+            SourceId::CoinGecko,
+            SourceId::Ethplorer,
+            SourceId::GeckoTerminal,
+            SourceId::Jupiter,
+            SourceId::ParaSwap,
+            SourceId::YahooFinance,
+        ];
+        let reg = make_reg_with_ids(&ids);
+        for id in ids {
+            assert!(reg.resolve_adapter(id).is_ok(), "{id:?} should resolve");
+        }
+    }
+
+    #[test]
+    fn resolve_adapter_no_adapter_ids_error() {
+        let reg = make_reg_with_ids(&[SourceId::ManualImport, SourceId::RwaXyz]);
+        assert!(reg.resolve_adapter(SourceId::ManualImport).is_err());
+        assert!(reg.resolve_adapter(SourceId::RwaXyz).is_err());
+    }
+
+    #[test]
+    fn price_oracle_resolves_coingecko() {
+        let reg = make_reg_with_ids(&[SourceId::CoinGecko]);
+        assert!(reg.price_oracle(SourceId::CoinGecko).is_ok());
+    }
+
+    #[test]
+    fn price_oracle_rejects_non_oracle_sources() {
+        let reg = make_reg_with_ids(&[SourceId::GeckoTerminal, SourceId::Jupiter]);
+        assert!(reg.price_oracle(SourceId::GeckoTerminal).is_err());
+        assert!(reg.price_oracle(SourceId::Jupiter).is_err());
+    }
+
+    #[test]
+    fn rpc_url_requires_chain_to_be_configured() {
+        use super::super::profile::{SourceKind, SourceProfile};
+        use std::collections::HashMap;
+        let mut rpc_endpoints = HashMap::new();
+        rpc_endpoints.insert("ethereum".into(), "https://eth.test".into());
+        let mut profiles = HashMap::new();
+        profiles.insert(
+            SourceId::PublicNodeRpc,
+            SourceProfile {
+                id: SourceId::PublicNodeRpc,
+                kind: SourceKind::Rpc,
+                base_url: None,
+                rpc_endpoints,
+                base_path: None,
+                env_keys: vec![],
+                rate_limit_ms: 0,
+                default_headers: HashMap::new(),
+            },
+        );
+        let reg = SourceRegistry::from_profiles(profiles);
+        assert_eq!(reg.rpc_url("ethereum").unwrap(), "https://eth.test");
+        assert!(reg.rpc_url("solana").is_err());
+    }
+
+    #[test]
+    fn require_profile_errors_for_unconfigured_source() {
+        let reg = SourceRegistry::from_profiles(std::collections::HashMap::new());
+        assert!(reg.require_profile(SourceId::Jupiter).is_err());
+    }
 }

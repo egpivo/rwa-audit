@@ -486,4 +486,97 @@ mod tests {
         // low + non-suspect source_type → not filtered out
         assert!(snapshot_for_date(&seed, "2026-06-10").is_some());
     }
+
+    #[test]
+    fn snapshot_for_date_missing_date_returns_none() {
+        let seed = PlatformSeedFile {
+            metric: "x".into(),
+            definition_url: "x".into(),
+            note: "x".into(),
+            last_fetched: None,
+            snapshots: vec![PlatformSnapshot {
+                date: "2026-06-10".into(),
+                monthly_transfer_volume_usd: 1.0e6,
+                source_url: "u".into(),
+                accessed_date: "2026-06-10".into(),
+                confidence: "high".into(),
+                caveat: "".into(),
+                source_type: None,
+                exclude_from_interpolation: None,
+            }],
+        };
+        assert!(snapshot_for_date(&seed, "2026-06-11").is_none());
+    }
+
+    #[test]
+    fn save_seed_to_and_load_round_trip() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-seed-rt-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let path = dir.join("seed.json");
+        let seed = PlatformSeedFile {
+            metric: "test".into(),
+            definition_url: "https://example".into(),
+            note: "note".into(),
+            last_fetched: Some("2026-06-12".into()),
+            snapshots: vec![],
+        };
+        save_seed_to(&path, &seed).unwrap();
+        let loaded = load_seed_from(&path).unwrap();
+        assert_eq!(loaded.metric, "test");
+        assert_eq!(loaded.last_fetched, Some("2026-06-12".into()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rwa_xstocks_url_appends_path_when_base_has_no_platform() {
+        use crate::sources::cache::ResponseCache;
+        use crate::sources::profile::{SourceKind, SourceProfile};
+        use crate::sources::registry::SourceRegistry;
+        use std::collections::HashMap;
+        let profile = SourceProfile {
+            id: SourceId::RwaXyz,
+            kind: SourceKind::Http,
+            base_url: Some("https://app.rwa.xyz".into()),
+            rpc_endpoints: HashMap::new(),
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        };
+        let reg = SourceRegistry::from_profiles(HashMap::from([(SourceId::RwaXyz, profile)]));
+        let ctx = crate::sources::context::SourceContext::with_registry(reg)
+            .unwrap()
+            .with_cache(ResponseCache::disabled());
+        let url = rwa_xstocks_url(&ctx).unwrap();
+        assert_eq!(url, "https://app.rwa.xyz/platforms/xstocks");
+    }
+
+    #[test]
+    fn rwa_xstocks_url_returns_base_when_already_contains_platforms_path() {
+        use crate::sources::cache::ResponseCache;
+        use crate::sources::profile::{SourceKind, SourceProfile};
+        use crate::sources::registry::SourceRegistry;
+        use std::collections::HashMap;
+        let profile = SourceProfile {
+            id: SourceId::RwaXyz,
+            kind: SourceKind::Http,
+            base_url: Some("https://app.rwa.xyz/platforms/xstocks".into()),
+            rpc_endpoints: HashMap::new(),
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        };
+        let reg = SourceRegistry::from_profiles(HashMap::from([(SourceId::RwaXyz, profile)]));
+        let ctx = crate::sources::context::SourceContext::with_registry(reg)
+            .unwrap()
+            .with_cache(ResponseCache::disabled());
+        let url = rwa_xstocks_url(&ctx).unwrap();
+        assert_eq!(url, "https://app.rwa.xyz/platforms/xstocks");
+    }
 }

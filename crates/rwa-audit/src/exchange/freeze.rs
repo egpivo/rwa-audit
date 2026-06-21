@@ -516,4 +516,72 @@ mod tests {
         assert_eq!(frozen_at_timestamp(), "2026-01-01T00:00:00Z");
         std::env::remove_var("RWA_AUDIT_FROZEN_AT");
     }
+
+    #[test]
+    fn assert_near_passes_within_tolerance() {
+        assert!(assert_near(100.0, 100.0, 1.0, "exact").is_ok());
+        assert!(assert_near(100.5, 100.0, 1.0, "close").is_ok());
+        assert!(assert_near(99.0, 100.0, 1.0, "at edge").is_ok());
+    }
+
+    #[test]
+    fn assert_near_fails_outside_tolerance() {
+        let err = assert_near(105.0, 100.0, 1.0, "too far").unwrap_err();
+        assert!(err.to_string().contains("too far"));
+    }
+
+    #[test]
+    fn validate_publish_targets_passes_with_valid_data() {
+        let aaplx = SymbolPoolAggregate {
+            symbol: "AAPLx".into(),
+            pool_count: 2,
+            total_tvl_usd: 124_062.35,
+            total_24h_vol_usd: 34_771.14,
+            top_pool_vol_share: None,
+            source_url: "u".into(),
+            provenance: None,
+        };
+        let tslax = SymbolPoolAggregate {
+            symbol: "TSLAx".into(),
+            pool_count: 1,
+            total_tvl_usd: 0.0,
+            total_24h_vol_usd: 3_358_518.82,
+            top_pool_vol_share: None,
+            source_url: "u".into(),
+            provenance: None,
+        };
+        let spyx = SymbolPoolAggregate {
+            symbol: "SPYx".into(),
+            pool_count: 1,
+            total_tvl_usd: 0.0,
+            total_24h_vol_usd: 7_102_758.23,
+            top_pool_vol_share: None,
+            source_url: "u".into(),
+            provenance: None,
+        };
+        assert!(
+            validate_publish_targets(&aaplx, &tslax, &spyx, 68.2, 1.03e9, 1.60e9, 763.76e6,)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_publish_targets_fails_on_bad_apr() {
+        let empty = SymbolPoolAggregate {
+            symbol: "X".into(),
+            pool_count: 0,
+            total_tvl_usd: 124_062.35,
+            total_24h_vol_usd: 34_771.14,
+            top_pool_vol_share: None,
+            source_url: "u".into(),
+            provenance: None,
+        };
+        let same = empty.clone();
+        let same2 = empty.clone();
+        assert!(validate_publish_targets(
+            &empty, &same, &same2, 68.2, 0.0, // apr way off
+            1.60e9, 763.76e6,
+        )
+        .is_err());
+    }
 }

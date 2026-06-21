@@ -167,4 +167,37 @@ mod tests {
         let spyx = gecko_aggregate_from_reference("SPYx").unwrap();
         assert!((spyx.total_24h_vol_usd - 7_102_758.23).abs() < 1.0);
     }
+
+    #[test]
+    fn parse_metric_value_dollar_with_commas() {
+        let v = parse_metric_value("$1,234.56").unwrap();
+        assert!((v - 1234.56).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_metric_value_plain_number() {
+        let v = parse_metric_value("  42.5  ").unwrap();
+        assert!((v - 42.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_metric_value_not_collected_errors() {
+        assert!(parse_metric_value("not_collected").is_err());
+        assert!(parse_metric_value("NOT_COLLECTED").is_err());
+    }
+
+    #[test]
+    fn parse_metric_value_garbage_errors() {
+        assert!(parse_metric_value("n/a").is_err());
+    }
+
+    #[test]
+    fn jupiter_quote_from_publish_fixture_fallback() {
+        let q = jupiter_quote_from_publish_fixture().unwrap();
+        assert_eq!(q.input_symbol, "USDC");
+        assert_eq!(q.output_symbol, "AAPLx");
+        assert!(q.price_impact_pct.is_some());
+        assert!(!q.route_labels.is_empty());
+        assert!(q.provenance.is_some());
+    }
 }

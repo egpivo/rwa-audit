@@ -131,4 +131,38 @@ mod tests {
         let publish = exchange_output_dir(false);
         assert!(publish.ends_with("artifacts/data"));
     }
+
+    #[test]
+    fn exchange_live_audit_id_format() {
+        let id = exchange_live_audit_id("2026-06-21");
+        assert_eq!(id, "exchange-live-2026-06-21");
+    }
+
+    #[test]
+    fn evidence_path_in_dir_builds_correct_path() {
+        let dir = std::path::Path::new("/tmp/out");
+        let p = evidence_path_in_dir(dir, "manifest.json");
+        assert_eq!(p, "/tmp/out/manifest.json");
+    }
+
+    #[test]
+    fn resolve_panel_date_live_without_custom_returns_today() {
+        let d = resolve_panel_date(true, None).unwrap();
+        assert!(!d.is_empty());
+        assert!(d.contains('-'));
+    }
+
+    #[test]
+    fn path_helpers_return_non_empty_paths() {
+        assert!(!exchange_publish_dir().to_string_lossy().is_empty());
+        assert!(!exchange_data_dir().to_string_lossy().is_empty());
+        assert!(platform_seed_path().to_string_lossy().ends_with(".json"));
+        assert!(bridged_export_csv().to_string_lossy().ends_with(".csv"));
+        assert!(reference_panel_path().to_string_lossy().ends_with(".csv"));
+        assert!(publish_panel_path().to_string_lossy().ends_with(".csv"));
+        assert!(jupiter_publish_fixture_path()
+            .to_string_lossy()
+            .ends_with(".json"));
+        assert!(manifest_path().to_string_lossy().ends_with(".json"));
+    }
 }

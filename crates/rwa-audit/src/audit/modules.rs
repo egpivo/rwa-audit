@@ -573,4 +573,98 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("live"));
     }
+
+    #[test]
+    fn registry_output_files_has_five_entries() {
+        let dir = std::path::Path::new("/tmp/test-reg");
+        let files = registry_output_files(dir);
+        assert_eq!(files.len(), 5);
+        assert!(files.iter().any(|p| p.ends_with("rwa_asset_registry.csv")));
+        assert!(files
+            .iter()
+            .any(|p| p.ends_with("rwa_transfer_metrics.csv")));
+        assert!(files.iter().any(|p| p.ends_with("rwa_holder_metrics.csv")));
+        assert!(files
+            .iter()
+            .any(|p| p.ends_with("rwa_mint_burn_metrics.csv")));
+        assert!(files
+            .iter()
+            .any(|p| p.ends_with("rwa_data_quality_notes.md")));
+    }
+
+    #[test]
+    fn exchange_output_files_has_two_entries() {
+        let dir = std::path::Path::new("/tmp/test-ex");
+        let files = exchange_output_files(dir);
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().any(|p| p.ends_with("manifest.json")));
+        assert!(files
+            .iter()
+            .any(|p| p.ends_with("depth_vs_volume_panel_publish.csv")));
+    }
+
+    #[test]
+    fn all_module_names_non_empty_and_unique() {
+        let names = all_module_names();
+        assert!(!names.is_empty());
+        let unique: std::collections::HashSet<_> = names.iter().collect();
+        assert_eq!(unique.len(), names.len());
+    }
+
+    #[test]
+    fn module_methods_are_correct() {
+        use crate::core::manifest::AuditMethod;
+        assert!(matches!(RegistryModule.method(), AuditMethod::Registry));
+        assert!(matches!(ActivityModule.method(), AuditMethod::Activity));
+        assert!(matches!(Article1Module.method(), AuditMethod::Registry));
+        assert!(matches!(FlowPanelModule.method(), AuditMethod::FlowSurface));
+        assert!(matches!(
+            FlowQuotesModule.method(),
+            AuditMethod::FlowSurface
+        ));
+        assert!(matches!(FlowTxModule.method(), AuditMethod::FlowSurface));
+        assert!(matches!(
+            ExchangeModule.method(),
+            AuditMethod::ExchangeSurface
+        ));
+    }
+
+    #[test]
+    fn module_names_match_resolve() {
+        assert_eq!(RegistryModule.name(), "registry");
+        assert_eq!(ActivityModule.name(), "activity");
+        assert_eq!(Article1Module.name(), "article1");
+        assert_eq!(FlowPanelModule.name(), "flow-panel");
+        assert_eq!(FlowQuotesModule.name(), "flow-quotes");
+        assert_eq!(FlowTxModule.name(), "flow-tx");
+        assert_eq!(ExchangeModule.name(), "exchange");
+    }
+
+    #[test]
+    fn flow_module_publish_bundles_are_none() {
+        assert!(FlowPanelModule.publish_bundle().is_none());
+        assert!(FlowQuotesModule.publish_bundle().is_none());
+        assert!(FlowTxModule.publish_bundle().is_none());
+        assert!(RegistryModule.publish_bundle().is_none());
+        assert!(ActivityModule.publish_bundle().is_none());
+    }
+
+    #[test]
+    fn exchange_run_args_default() {
+        let args = ExchangeRunArgs::default();
+        assert!(!args.refresh_rwa_xyz);
+    }
+
+    #[test]
+    fn run_mode_is_live_and_frozen() {
+        assert!(RunMode::Live.is_live());
+        assert!(!RunMode::Frozen {
+            snapshot_date: None
+        }
+        .is_live());
+        assert!(!RunMode::Frozen {
+            snapshot_date: Some("2026-06-12".into())
+        }
+        .is_live());
+    }
 }

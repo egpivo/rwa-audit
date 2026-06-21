@@ -470,6 +470,24 @@ mod tests {
     }
 
     #[test]
+    fn exchange_bundle_panel_date_for_unknown_audit_id() {
+        assert!(exchange_bundle_panel_date("unknown-audit").is_none());
+        assert!(exchange_bundle_panel_date(EXCHANGE_BUNDLE.id).is_some());
+    }
+
+    #[test]
+    fn rewrite_evidence_path_non_artifacts_path() {
+        let p = rewrite_evidence_path("data/some_file.csv", "article1-2026-06-20");
+        assert_eq!(p, "artifacts/audits/article1-2026-06-20/data/some_file.csv");
+    }
+
+    #[test]
+    fn freeze_error_unknown_audit_display() {
+        let e = FreezeError::UnknownAudit("bad-id".into());
+        assert!(e.to_string().contains("bad-id"));
+    }
+
+    #[test]
     fn default_materialization_requires_prepared_manifest() {
         struct PreparedOnly;
         static SPEC: AuditBundleSpec = AuditBundleSpec {

@@ -187,6 +187,84 @@ mod tests {
     }
 
     #[test]
+    fn claim_ids_returns_all_ids() {
+        let mut m = AuditManifest::exchange_template("x", "t".into());
+        let mut c2 = fixture_claim();
+        c2.id = "claim2".into();
+        m.claims = vec![fixture_claim(), c2];
+        let ids = m.claim_ids();
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&"test_claim"));
+        assert!(ids.contains(&"claim2"));
+    }
+
+    #[test]
+    fn validate_rejects_empty_title() {
+        let mut m = AuditManifest::exchange_template("x", "t".into());
+        m.claims.push(fixture_claim());
+        m.title = "".into();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_frozen_at() {
+        let mut m = AuditManifest::exchange_template("x", "t".into());
+        m.claims.push(fixture_claim());
+        m.frozen_at = "".into();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_no_claims() {
+        let m = AuditManifest::exchange_template("x", "t".into());
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_claim_id() {
+        let mut m = AuditManifest::exchange_template("x", "t".into());
+        let mut c = fixture_claim();
+        c.id = "".into();
+        m.claims = vec![c];
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_evidence_file() {
+        let mut m = AuditManifest::exchange_template("x", "t".into());
+        let mut c = fixture_claim();
+        c.evidence_file = "".into();
+        m.claims = vec![c];
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn audit_method_serializes_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&AuditMethod::ExchangeSurface).unwrap(),
+            "\"exchange_surface\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AuditMethod::FlowSurface).unwrap(),
+            "\"flow_surface\""
+        );
+    }
+
+    #[test]
+    fn claim_status_round_trips() {
+        let statuses = [
+            ClaimStatus::Verified,
+            ClaimStatus::Partial,
+            ClaimStatus::Gap,
+        ];
+        for s in statuses {
+            let json = serde_json::to_string(&s).unwrap();
+            let back: ClaimStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, s);
+        }
+    }
+
+    #[test]
     fn deserializes_legacy_manifest_without_new_fields() {
         let json = r#"{
           "title": "Exchange — Where RWA Exchange Risk Actually Sits",

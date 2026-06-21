@@ -121,8 +121,50 @@ mod tests {
     }
 
     #[test]
+    fn cache_key_is_64_hex_chars() {
+        let k = cache_key(&["a", "b"]);
+        assert_eq!(k.len(), 64);
+        assert!(k.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
     fn source_id_serializes_snake_case() {
         let json = serde_json::to_string(&SourceId::CoinGecko).unwrap();
         assert_eq!(json, "\"coingecko\"");
+    }
+
+    #[test]
+    fn source_id_as_str_all_variants() {
+        assert_eq!(SourceId::PublicNodeRpc.as_str(), "publicnode_rpc");
+        assert_eq!(SourceId::CoinGecko.as_str(), "coingecko");
+        assert_eq!(SourceId::Ethplorer.as_str(), "ethplorer");
+        assert_eq!(SourceId::GeckoTerminal.as_str(), "geckoterminal");
+        assert_eq!(SourceId::ParaSwap.as_str(), "paraswap");
+        assert_eq!(SourceId::Jupiter.as_str(), "jupiter");
+        assert_eq!(SourceId::YahooFinance.as_str(), "yahoo_finance");
+        assert_eq!(SourceId::ManualImport.as_str(), "manual_import");
+        assert_eq!(SourceId::RwaXyz.as_str(), "rwa_xyz");
+    }
+
+    #[test]
+    fn sha256_hex_bytes_returns_64_char_hex() {
+        let h = sha256_hex_bytes(b"hello");
+        assert_eq!(h.len(), 64);
+        assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(h, sha256_hex_bytes(b"world"));
+    }
+
+    #[test]
+    fn provenance_new_and_with_sha256() {
+        let p = Provenance::new(SourceId::Jupiter, "https://test.example", true)
+            .with_sha256("abc123".into());
+        assert_eq!(p.source, "jupiter");
+        assert_eq!(p.request_url, "https://test.example");
+        assert!(p.live);
+        assert_eq!(p.response_sha256.as_deref(), Some("abc123"));
+
+        let p2 = Provenance::new(SourceId::CoinGecko, "https://u", false);
+        assert!(!p2.live);
+        assert!(p2.response_sha256.is_none());
     }
 }

@@ -161,4 +161,20 @@ mod tests {
             assert!(names.contains(&m), "missing module {m}");
         }
     }
+
+    #[test]
+    fn audit_context_with_registry_assets_path() {
+        let ctx = AuditContext::new()
+            .unwrap()
+            .with_registry_assets_path("/tmp/custom.yaml".into());
+        assert_eq!(ctx.registry_assets_path.as_os_str(), "/tmp/custom.yaml");
+    }
+
+    #[test]
+    fn run_extra_default_fields() {
+        let extra = RunExtra::default();
+        assert!(extra.tx_hashes.is_empty());
+        assert!(!extra.promote_bundle);
+        assert!(!extra.exchange.refresh_rwa_xyz);
+    }
 }

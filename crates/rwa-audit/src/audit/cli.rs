@@ -625,4 +625,81 @@ mod tests {
         let err = parse_run_command(&mut iter).unwrap_err();
         assert!(matches!(err, CliError::Usage(_)));
     }
+
+    #[test]
+    fn run_cli_help_aliases() {
+        assert!(run_cli(args("--help")).is_ok());
+        assert!(run_cli(args("-h")).is_ok());
+    }
+
+    #[test]
+    fn parse_run_missing_module_is_error() {
+        let err = parse_run_command(&mut std::iter::empty()).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+        assert!(err.to_string().contains("module"));
+    }
+
+    #[test]
+    fn parse_freeze_missing_action_is_error() {
+        let err = parse_freeze_command(&mut std::iter::empty()).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_exchange_frozen_promote_ok() {
+        let cmd = RunCommand {
+            module: "exchange".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: true,
+            tx_hashes: vec![],
+        };
+        assert!(validate_run_flags(&cmd).is_ok());
+    }
+
+    #[test]
+    fn validate_run_assets_on_flow_panel_is_error() {
+        let cmd = RunCommand {
+            module: "flow-panel".to_string(),
+            mode: RunMode::Live,
+            assets: Some("some/path.yaml".into()),
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_run_refresh_rwa_on_exchange_is_ok() {
+        let cmd = RunCommand {
+            module: "exchange".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: true,
+            promote: true,
+            tx_hashes: vec![],
+        };
+        assert!(validate_run_flags(&cmd).is_ok());
+    }
+
+    #[test]
+    fn parse_run_publish_date_missing_value_is_error() {
+        let mut iter = args("run exchange --publish-date").into_iter().skip(2);
+        let err = parse_run_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_run_assets_missing_value_is_error() {
+        let mut iter = args("run registry --assets").into_iter().skip(2);
+        let err = parse_run_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
 }

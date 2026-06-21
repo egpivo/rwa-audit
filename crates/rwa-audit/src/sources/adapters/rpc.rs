@@ -96,4 +96,44 @@ mod tests {
         let b = ResponseCache::key_from_rpc("http://x", "eth_getLogs", &json!([]));
         assert_ne!(a, b);
     }
+
+    #[test]
+    fn adapter_id_is_publicnode_rpc() {
+        use crate::sources::adapter::SourceAdapter;
+        assert_eq!(PublicNodeRpcAdapter.id(), SourceId::PublicNodeRpc);
+    }
+
+    #[test]
+    fn adapter_rejects_http_get_request() {
+        use crate::sources::adapter::SourceAdapter;
+        use crate::sources::cache::ResponseCache;
+        use crate::sources::profile::{SourceKind, SourceProfile};
+        use crate::sources::registry::SourceRegistry;
+        use std::collections::HashMap;
+        let mut rpc_endpoints = HashMap::new();
+        rpc_endpoints.insert("ethereum".into(), "https://eth.test".into());
+        let profile = SourceProfile {
+            id: SourceId::PublicNodeRpc,
+            kind: SourceKind::Rpc,
+            base_url: None,
+            rpc_endpoints,
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        };
+        let reg =
+            SourceRegistry::from_profiles(HashMap::from([(SourceId::PublicNodeRpc, profile)]));
+        let ctx = crate::sources::context::SourceContext::with_registry(reg)
+            .unwrap()
+            .with_cache(ResponseCache::disabled());
+        let result = PublicNodeRpcAdapter.fetch(
+            &ctx,
+            SourceRequest::HttpGet {
+                url: "http://x".into(),
+                query: vec![],
+            },
+        );
+        assert!(result.is_err());
+    }
 }
