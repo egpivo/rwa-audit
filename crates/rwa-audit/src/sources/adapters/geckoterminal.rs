@@ -241,6 +241,26 @@ mod tests {
     }
 
     #[test]
+    fn pool_meta_returns_none_without_attributes() {
+        let item = json!({"id": "abc", "type": "pool"});
+        assert!(PoolMeta::from_gecko(&item).is_none());
+    }
+
+    #[test]
+    fn pool_meta_volume_defaults_to_zero_when_absent() {
+        let item = json!({
+            "attributes": {
+                "address": "0xdef",
+                "name": "TOKEN/USDC",
+                "reserve_in_usd": "5000"
+            }
+        });
+        let meta = PoolMeta::from_gecko(&item).unwrap();
+        assert_eq!(meta.volume_h24_usd, 0.0);
+        assert_eq!(meta.reserve_usd, 5000.0);
+    }
+
+    #[test]
     fn solana_aggregate_excludes_outlier_tvl() {
         let body = json!({
             "data": [
@@ -262,5 +282,52 @@ mod tests {
             .unwrap()
             .get("provenance")
             .is_none());
+    }
+
+    #[test]
+    fn aggregate_returns_empty_when_no_data() {
+        let body = json!({"data": []});
+        let agg = aggregate_solana_search(
+            "AAPLx",
+            &body,
+            Provenance::new(SourceId::GeckoTerminal, "http://example", false),
+        );
+        assert_eq!(agg.pool_count, 0);
+        assert_eq!(agg.total_tvl_usd, 0.0);
+        assert_eq!(agg.total_24h_vol_usd, 0.0);
+        assert!(agg.top_pool_vol_share.is_none());
+    }
+
+    #[test]
+    fn aggregate_all_outliers_gives_empty_result() {
+        let body = json!({
+            "data": [
+                {"attributes": {"reserve_in_usd": "100000000", "volume_usd": {"h24": "500000"}}}
+            ]
+        });
+        let agg = aggregate_solana_search(
+            "SPYx",
+            &body,
+            Provenance::new(SourceId::GeckoTerminal, "http://example", false),
+        );
+        assert_eq!(agg.pool_count, 0);
+        assert!(agg.top_pool_vol_share.is_none());
+    }
+
+    #[test]
+    fn aggregate_zero_volume_has_no_top_share() {
+        let body = json!({
+            "data": [
+                {"attributes": {"reserve_in_usd": "10000", "volume_usd": {"h24": "0"}}}
+            ]
+        });
+        let agg = aggregate_solana_search(
+            "AAPLx",
+            &body,
+            Provenance::new(SourceId::GeckoTerminal, "http://example", false),
+        );
+        assert_eq!(agg.pool_count, 1);
+        assert_eq!(agg.total_24h_vol_usd, 0.0);
+        assert!(agg.top_pool_vol_share.is_none());
     }
 }

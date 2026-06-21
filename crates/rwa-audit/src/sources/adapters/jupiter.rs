@@ -163,6 +163,10 @@ impl JupiterAdapter {
 mod tests {
     use super::*;
 
+    fn prov() -> Provenance {
+        Provenance::new(SourceId::Jupiter, "https://example.test/quote", true)
+    }
+
     #[test]
     fn evidence_keeps_runtime_provenance_out_of_payload() {
         let evidence = JupiterAdapter::parse_quote_evidence(
@@ -171,7 +175,7 @@ mod tests {
                 "outAmount": "42",
                 "routePlan": []
             }),
-            Provenance::new(SourceId::Jupiter, "https://example.test/quote", true),
+            prov(),
             "in",
             "out",
             "IN",
@@ -187,5 +191,98 @@ mod tests {
             .unwrap()
             .get("provenance")
             .is_none());
+    }
+
+    #[test]
+    fn parse_price_impact_large_float_not_scaled() {
+        let ev = JupiterAdapter::parse_quote_evidence(
+            serde_json::json!({"priceImpactPct": 5.0}),
+            prov(),
+            "in",
+            "out",
+            "IN",
+            "OUT",
+            100,
+            100_000_000,
+            100,
+        )
+        .unwrap();
+        assert!((ev.price_impact_pct.unwrap() - 5.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_price_impact_small_float_is_scaled_by_100() {
+        let ev = JupiterAdapter::parse_quote_evidence(
+            serde_json::json!({"priceImpactPct": 0.01}),
+            prov(),
+            "in",
+            "out",
+            "IN",
+            "OUT",
+            100,
+            100_000_000,
+            100,
+        )
+        .unwrap();
+        assert!((ev.price_impact_pct.unwrap() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_price_impact_missing_field_is_none() {
+        let ev = JupiterAdapter::parse_quote_evidence(
+            serde_json::json!({}),
+            prov(),
+            "in",
+            "out",
+            "IN",
+            "OUT",
+            100,
+            100_000_000,
+            100,
+        )
+        .unwrap();
+        assert!(ev.price_impact_pct.is_none());
+    }
+
+    #[test]
+    fn parse_route_plan_extracts_labels() {
+        let ev = JupiterAdapter::parse_quote_evidence(
+            serde_json::json!({
+                "priceImpactPct": "0.5",
+                "outAmount": "42",
+                "routePlan": [
+                    {"swapInfo": {"label": "Orca"}},
+                    {"swapInfo": {"label": "Raydium"}}
+                ]
+            }),
+            prov(),
+            "in",
+            "out",
+            "IN",
+            "OUT",
+            100,
+            100_000_000,
+            100,
+        )
+        .unwrap();
+        assert_eq!(ev.route_labels, vec!["Orca", "Raydium"]);
+        assert_eq!(ev.out_amount_raw.as_deref(), Some("42"));
+    }
+
+    #[test]
+    fn parse_missing_out_amount_returns_none() {
+        let ev = JupiterAdapter::parse_quote_evidence(
+            serde_json::json!({"priceImpactPct": "1.5"}),
+            prov(),
+            "in",
+            "out",
+            "IN",
+            "OUT",
+            100,
+            100_000_000,
+            100,
+        )
+        .unwrap();
+        assert!(ev.out_amount_raw.is_none());
     }
 }

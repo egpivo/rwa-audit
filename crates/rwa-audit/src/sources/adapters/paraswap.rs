@@ -128,4 +128,50 @@ mod tests {
         let (_, amount_6, _, _, _) = ParaSwapAdapter::parse_price_route(&body, 6);
         assert!((amount_6.unwrap() - 1e12).abs() < 1.0);
     }
+
+    #[test]
+    fn parse_price_route_no_price_route_no_error_key_returns_default() {
+        let body = json!({});
+        let (ok, amount, route, err, _) = ParaSwapAdapter::parse_price_route(&body, 6);
+        assert!(!ok);
+        assert!(amount.is_none());
+        assert_eq!(route, "");
+        assert_eq!(err.as_deref(), Some("no route"));
+    }
+
+    #[test]
+    fn parse_price_route_returns_named_error_field() {
+        let body = json!({"error": "INSUFFICIENT_LIQUIDITY"});
+        let (ok, _, _, err, _) = ParaSwapAdapter::parse_price_route(&body, 6);
+        assert!(!ok);
+        assert_eq!(err.as_deref(), Some("INSUFFICIENT_LIQUIDITY"));
+    }
+
+    #[test]
+    fn parse_price_route_extracts_exchange_chain() {
+        let body = json!({
+            "priceRoute": {
+                "destAmount": "2000000",
+                "bestRoute": [{
+                    "swaps": [
+                        {"swapExchanges": [{"exchange": "UniswapV3"}]},
+                        {"swapExchanges": [{"exchange": "Curve"}]}
+                    ]
+                }]
+            }
+        });
+        let (ok, amount, route, err, _) = ParaSwapAdapter::parse_price_route(&body, 6);
+        assert!(ok);
+        assert!((amount.unwrap() - 2.0).abs() < 1e-6);
+        assert_eq!(route, "UniswapV3 → Curve");
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn parse_price_route_missing_dest_amount_returns_none_amount() {
+        let body = json!({"priceRoute": {"bestRoute": []}});
+        let (ok, amount, _, _, _) = ParaSwapAdapter::parse_price_route(&body, 6);
+        assert!(ok);
+        assert!(amount.is_none());
+    }
 }

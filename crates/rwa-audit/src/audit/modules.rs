@@ -461,4 +461,63 @@ mod tests {
         let _ = crate::asset_config::default_registry_path();
         assert!(resolve_module("registry").is_ok());
     }
+
+    #[test]
+    fn resolve_module_unknown_name_bails() {
+        assert!(resolve_module("nonexistent").is_err());
+    }
+
+    #[test]
+    fn data_write_lock_ids_are_set_where_expected() {
+        assert!(RegistryModule.data_write_lock_id().is_some());
+        assert!(ActivityModule.data_write_lock_id().is_some());
+        assert!(Article1Module.data_write_lock_id().is_some());
+        assert!(ExchangeModule.data_write_lock_id().is_some());
+        assert!(FlowPanelModule.data_write_lock_id().is_none());
+        assert!(FlowQuotesModule.data_write_lock_id().is_none());
+        assert!(FlowTxModule.data_write_lock_id().is_none());
+    }
+
+    #[test]
+    fn exchange_module_has_publish_bundle() {
+        assert!(ExchangeModule.publish_bundle().is_some());
+    }
+
+    #[test]
+    fn article1_module_has_publish_bundle() {
+        assert!(Article1Module.publish_bundle().is_some());
+    }
+
+    #[test]
+    fn exchange_run_mode_live_sets_live_apis() {
+        let opts = exchange_run_mode(&RunMode::Live);
+        assert!(opts.live_apis);
+        assert!(opts.panel_date.is_none());
+    }
+
+    #[test]
+    fn flow_panel_rejects_frozen_mode() {
+        let ctx = AuditContext::new().unwrap();
+        let err = FlowPanelModule
+            .run(
+                &ctx,
+                RunMode::Frozen { snapshot_date: None },
+                &RunExtra::default(),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
+
+    #[test]
+    fn flow_quotes_rejects_frozen_mode() {
+        let ctx = AuditContext::new().unwrap();
+        let err = FlowQuotesModule
+            .run(
+                &ctx,
+                RunMode::Frozen { snapshot_date: None },
+                &RunExtra::default(),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
 }

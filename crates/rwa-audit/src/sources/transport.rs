@@ -202,9 +202,139 @@ impl HttpTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sources::test_support::MockHttpServer;
 
     #[test]
     fn transport_builds_client() {
         HttpTransport::new().unwrap();
+    }
+
+    #[test]
+    fn http_get_sends_query_and_headers_and_parses_json() {
+        let server = MockHttpServer::spawn("200 OK", "application/json", r#"{"ok":true}"#);
+        let result = HttpTransport::new()
+            .unwrap()
+            .http_get_with_headers(
+                &server.url,
+                &[("q", "a b")],
+                &[("x-audit-test", "present")],
+                1,
+            )
+            .unwrap();
+
+        match result {
+            HttpGetResult::Ok(body) => assert_eq!(body["ok"], true),
+            other => panic!("unexpected result: {other:?}"),
+        }
+        let request = server.request().to_ascii_lowercase();
+        assert!(request.starts_with("get /?q=a+b ") || request.starts_with("get /?q=a%20b "));
+        assert!(request.contains("x-audit-test: present"));
+    }
+
+    #[test]
+    fn http_get_parses_text() {
+        let server = MockHttpServer::spawn("200 OK", "text/plain", "audit evidence");
+        let result = HttpTransport::new()
+            .unwrap()
+            .http_get_text_with_headers(&server.url, &[], &[], 1)
+            .unwrap();
+
+        match result {
+            HttpGetResult::Ok(body) => assert_eq!(body, "audit evidence"),
+            other => panic!("unexpected result: {other:?}"),
+        }
+        server.request();
+    }
+
+    #[test]
+    fn http_get_reports_server_error() {
+        let server = MockHttpServer::spawn("500 Internal Server Error", "application/json", "{}");
+        let error = HttpTransport::new()
+            .unwrap()
+            .http_get(&server.url, &[], 1)
+            .unwrap_err();
+
+        assert!(error.to_string().contains("500"));
+        server.request();
+    }
+
+    #[test]
+    fn json_with_status_preserves_client_error_body() {
+        let server = MockHttpServer::spawn(
+            "400 Bad Request",
+            "application/json",
+            r#"{"error":"no route"}"#,
+        );
+        let result = HttpTransport::new()
+            .unwrap()
+            .http_get_json_with_status(&server.url, &[], &[], 1)
+            .unwrap();
+
+        match result {
+            HttpGetResult::ClientError { status, body } => {
+                assert_eq!(status, 400);
+                assert_eq!(body["error"], "no route");
+            }
+            other => panic!("unexpected result: {other:?}"),
+        }
+        server.request();
+    }
+
+    #[test]
+    fn rpc_post_sends_json_and_parses_response() {
+        let server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x2a"}"#,
+        );
+        let body = HttpTransport::new()
+            .unwrap()
+            .rpc_post(
+                &server.url,
+                &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"eth_blockNumber"}),
+                1,
+            )
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(body["result"], "0x2a");
+        let request = server.request().to_ascii_lowercase();
+        assert!(request.starts_with("post / "));
+        assert!(request.contains("content-type: application/json"));
+    }
+
+    #[test]
+    fn rpc_post_reports_server_error() {
+        let server = MockHttpServer::spawn("503 Service Unavailable", "application/json", "{}");
+        let error = HttpTransport::new()
+            .unwrap()
+            .rpc_post(&server.url, &serde_json::json!({}), 1)
+            .unwrap_err();
+
+        assert!(error.to_string().contains("503"));
+        server.request();
+    }
+
+    #[test]
+    fn http_get_with_empty_params_works() {
+        let server = MockHttpServer::spawn("200 OK", "application/json", r#"{"empty":true}"#);
+        let result = HttpTransport::new()
+            .unwrap()
+            .http_get(&server.url, &[], 1)
+            .unwrap();
+        assert!(matches!(result, HttpGetResult::Ok(_)));
+        server.request();
+    }
+
+    #[test]
+    fn json_with_status_5xx_bails() {
+        let server =
+            MockHttpServer::spawn("500 Internal Server Error", "application/json", r#"{}"#);
+        let err = HttpTransport::new()
+            .unwrap()
+            .http_get_json_with_status(&server.url, &[], &[], 1)
+            .unwrap_err();
+        assert!(err.to_string().contains("500"));
+        server.request();
     }
 }

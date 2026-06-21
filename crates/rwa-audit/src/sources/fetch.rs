@@ -336,6 +336,55 @@ pub fn rpc_fetch_cached(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use serde_json::json;
+
+    use crate::sources::adapters::{
+        CoinGeckoAdapter, GeckoTerminalAdapter, ParaSwapAdapter, PublicNodeRpcAdapter,
+    };
+    use crate::sources::profile::{SourceKind, SourceProfile};
+    use crate::sources::registry::SourceRegistry;
+    use crate::sources::test_support::MockHttpServer;
+
+    fn temp_cache(name: &str) -> (ResponseCache, PathBuf) {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("rwa-fetch-{name}-{suffix}"));
+        (ResponseCache::new(root.clone()), root)
+    }
+
+    fn context_for(id: SourceId, base_url: &str, cache: ResponseCache) -> SourceContext {
+        let rpc_endpoints = if id == SourceId::PublicNodeRpc {
+            HashMap::from([("ethereum".to_string(), base_url.to_string())])
+        } else {
+            HashMap::new()
+        };
+        let profile = SourceProfile {
+            id,
+            kind: if id == SourceId::PublicNodeRpc {
+                SourceKind::Rpc
+            } else {
+                SourceKind::Http
+            },
+            base_url: Some(base_url.to_string()),
+            rpc_endpoints,
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::from([("x-default".into(), "configured".into())]),
+        };
+        SourceContext::with_registry(SourceRegistry::from_profiles(HashMap::from([(
+            id, profile,
+        )])))
+        .unwrap()
+        .with_cache(cache)
+    }
 
     #[test]
     fn canonical_request_url_percent_encodes_values() {
@@ -384,5 +433,195 @@ mod tests {
             canonical_request_url("https://api.example.com/v1", &[]),
             "https://api.example.com/v1"
         );
+    }
+
+    #[test]
+    fn cached_get_fetches_once_and_records_provenance() {
+        let server = MockHttpServer::spawn("200 OK", "application/json", r#"{"usd":42}"#);
+        let (cache, root) = temp_cache("json");
+        let ctx = context_for(SourceId::CoinGecko, &server.url, cache);
+        let query = vec![
+            ("asset".into(), "buidl".into()),
+            ("api_key".into(), "secret".into()),
+        ];
+
+        let live = http_get_cached(
+            &CoinGeckoAdapter,
+            &ctx,
+            &server.url,
+            &query,
+            &[("x-extra", "yes")],
+        )
+        .unwrap();
+        let cached = http_get_cached(&CoinGeckoAdapter, &ctx, &server.url, &query, &[]).unwrap();
+
+        assert_eq!(live.body["usd"], 42);
+        assert!(live.provenance.live);
+        assert!(live.provenance.response_sha256.is_some());
+        assert!(!live.provenance.request_url.contains("secret"));
+        assert_eq!(cached.body, live.body);
+        assert!(!cached.provenance.live);
+        let request = server.request().to_ascii_lowercase();
+        assert!(request.contains("x-default: configured"));
+        assert!(request.contains("x-extra: yes"));
+        assert!(request.contains("api_key=secret"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cached_get_rejects_server_errors() {
+        let server = MockHttpServer::spawn("500 Internal Server Error", "application/json", "{}");
+        let ctx = context_for(SourceId::CoinGecko, &server.url, ResponseCache::disabled());
+        let error = http_get_cached(&CoinGeckoAdapter, &ctx, &server.url, &[], &[]).unwrap_err();
+
+        assert!(error.to_string().contains("500"));
+        server.request();
+    }
+
+    #[test]
+    fn semantic_client_error_is_returned_and_cached() {
+        let server = MockHttpServer::spawn(
+            "400 Bad Request",
+            "application/json",
+            r#"{"error":"no route"}"#,
+        );
+        let (cache, root) = temp_cache("client-error");
+        let ctx = context_for(SourceId::ParaSwap, &server.url, cache);
+
+        let live = http_get_cached_or_error(&ParaSwapAdapter, &ctx, &server.url, &[], &[]).unwrap();
+        let cached =
+            http_get_cached_or_error(&ParaSwapAdapter, &ctx, &server.url, &[], &[]).unwrap();
+
+        assert_eq!(live.body["error"], "no route");
+        assert!(live.provenance.live);
+        assert!(!cached.provenance.live);
+        server.request();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn gecko_get_fetches_and_caches_success() {
+        let server = MockHttpServer::spawn("200 OK", "application/json", r#"{"data":[]}"#);
+        let (cache, root) = temp_cache("gecko");
+        let ctx = context_for(SourceId::GeckoTerminal, &server.url, cache);
+
+        let live = http_get_gecko(&GeckoTerminalAdapter, &ctx, &server.url, &[]).unwrap();
+        let cached = http_get_gecko(&GeckoTerminalAdapter, &ctx, &server.url, &[]).unwrap();
+
+        assert_eq!(live.body, json!({"data": []}));
+        assert!(live.provenance.live);
+        assert!(!cached.provenance.live);
+        let request = server.request().to_ascii_lowercase();
+        assert!(request.contains("accept: application/json"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn text_get_fetches_caches_and_extracts_text() {
+        let server = MockHttpServer::spawn("200 OK", "text/html", "<h1>evidence</h1>");
+        let (cache, root) = temp_cache("text");
+        let ctx = context_for(SourceId::RwaXyz, &server.url, cache);
+
+        let live = http_get_text_cached(SourceId::RwaXyz, &ctx, &server.url, &[]).unwrap();
+        let cached = http_get_text_cached(SourceId::RwaXyz, &ctx, &server.url, &[]).unwrap();
+
+        assert_eq!(response_text(&live).unwrap(), "<h1>evidence</h1>");
+        assert_eq!(cached.body, live.body);
+        assert!(!cached.provenance.live);
+        assert!(response_text(&SourceResponse {
+            provenance: live.provenance.clone(),
+            body: json!({"not": "text"}),
+        })
+        .is_err());
+        server.request();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn merged_query_params_merges_url_and_extra_params() {
+        let params = merged_query_params(
+            "https://api.example.com?a=1&b=2",
+            &[("c".into(), "3".into())],
+        );
+        assert!(params.iter().any(|(k, v)| k == "a" && v == "1"));
+        assert!(params.iter().any(|(k, v)| k == "b" && v == "2"));
+        assert!(params.iter().any(|(k, v)| k == "c" && v == "3"));
+    }
+
+    #[test]
+    fn merged_query_params_explicit_overrides_url_param() {
+        let params = merged_query_params(
+            "https://api.example.com?a=1",
+            &[("a".into(), "override".into())],
+        );
+        let a_vals: Vec<_> = params.iter().filter(|(k, _)| k == "a").collect();
+        assert_eq!(a_vals.len(), 1);
+        assert_eq!(a_vals[0].1, "override");
+    }
+
+    #[test]
+    fn merged_query_params_empty_inputs_returns_empty() {
+        let params = merged_query_params("https://api.example.com", &[]);
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn gecko_server_error_propagates_as_err() {
+        let server =
+            MockHttpServer::spawn("500 Internal Server Error", "application/json", r#"{}"#);
+        let ctx = context_for(SourceId::GeckoTerminal, &server.url, ResponseCache::disabled());
+        let err =
+            http_get_gecko(&GeckoTerminalAdapter, &ctx, &server.url, &[]).unwrap_err();
+        assert!(err.to_string().contains("500"));
+        server.request();
+    }
+
+    #[test]
+    fn text_get_requires_profile_to_be_registered() {
+        let ctx =
+            SourceContext::with_registry(SourceRegistry::from_profiles(HashMap::new()))
+                .unwrap()
+                .with_cache(ResponseCache::disabled());
+        let err =
+            http_get_text_cached(SourceId::RwaXyz, &ctx, "https://example.com", &[]).unwrap_err();
+        assert!(!err.to_string().is_empty());
+    }
+
+    #[test]
+    fn rpc_fetches_once_and_uses_cache() {
+        let server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x2a"}"#,
+        );
+        let (cache, root) = temp_cache("rpc");
+        let ctx = context_for(SourceId::PublicNodeRpc, &server.url, cache);
+        let params = json!([]);
+        let payload = json!({"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":params});
+
+        let live = rpc_fetch_cached(
+            &PublicNodeRpcAdapter,
+            &ctx,
+            &server.url,
+            "eth_blockNumber",
+            &params,
+            &payload,
+        )
+        .unwrap();
+        let cached = rpc_fetch_cached(
+            &PublicNodeRpcAdapter,
+            &ctx,
+            &server.url,
+            "eth_blockNumber",
+            &params,
+            &payload,
+        )
+        .unwrap();
+
+        assert_eq!(live.body["result"], "0x2a");
+        assert!(live.provenance.live);
+        assert!(!cached.provenance.live);
+        server.request();
+        let _ = fs::remove_dir_all(root);
     }
 }

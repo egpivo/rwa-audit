@@ -306,6 +306,41 @@ impl SourceContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    use crate::sources::profile::{SourceKind, SourceProfile};
+    use crate::sources::test_support::MockHttpServer;
+
+    fn profile(id: SourceId, base_url: &str) -> SourceProfile {
+        SourceProfile {
+            id,
+            kind: if id == SourceId::PublicNodeRpc {
+                SourceKind::Rpc
+            } else {
+                SourceKind::Http
+            },
+            base_url: Some(base_url.to_string()),
+            rpc_endpoints: if id == SourceId::PublicNodeRpc {
+                HashMap::from([
+                    ("ethereum".into(), base_url.to_string()),
+                    ("polygon".into(), base_url.to_string()),
+                ])
+            } else {
+                HashMap::new()
+            },
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        }
+    }
+
+    fn test_context(profiles: Vec<SourceProfile>) -> SourceContext {
+        let profiles = profiles.into_iter().map(|p| (p.id, p)).collect();
+        SourceContext::with_registry(SourceRegistry::from_profiles(profiles))
+            .unwrap()
+            .with_cache(ResponseCache::disabled())
+    }
 
     #[test]
     fn source_context_constructs() {
@@ -323,5 +358,134 @@ mod tests {
         let ctx = SourceContext::new().unwrap();
         let profile = ctx.profile(SourceId::CoinGecko).unwrap();
         assert!(profile.base_url.as_ref().unwrap().contains("coingecko"));
+    }
+
+    #[test]
+    fn accessors_and_registry_errors_are_exposed() {
+        let ctx = test_context(vec![profile(SourceId::CoinGecko, "http://example.test")]);
+
+        assert_eq!(
+            ctx.http_base_url(SourceId::CoinGecko).unwrap(),
+            "http://example.test"
+        );
+        assert_eq!(ctx.registry().profiles().len(), 1);
+        assert!(ctx.transport().http_get("not a url", &[], 1).is_err());
+        assert!(ctx.require_profile(SourceId::Jupiter).is_err());
+        assert!(ctx.rpc_for_chain("ethereum").is_err());
+        ctx.rate_limit_sleep(SourceId::Jupiter);
+    }
+
+    #[test]
+    fn generic_http_get_and_fetch_use_transport_and_adapter() {
+        let direct_server =
+            MockHttpServer::spawn("200 OK", "application/json", r#"{"direct":true}"#);
+        let direct_ctx = test_context(vec![profile(SourceId::CoinGecko, &direct_server.url)]);
+        let body = direct_ctx
+            .http_get(&direct_server.url, &[("q", "audit")], 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(body["direct"], true);
+        direct_server.request();
+
+        let fetch_server =
+            MockHttpServer::spawn("200 OK", "application/json", r#"{"adapter":true}"#);
+        let fetch_ctx = test_context(vec![profile(SourceId::CoinGecko, &fetch_server.url)]);
+        let response = fetch_ctx
+            .fetch(
+                SourceId::CoinGecko,
+                SourceRequest::HttpGet {
+                    url: fetch_server.url.clone(),
+                    query: vec![],
+                },
+            )
+            .unwrap();
+        assert_eq!(response.body["adapter"], true);
+        fetch_server.request();
+    }
+
+    #[test]
+    fn rpc_block_helpers_parse_results() {
+        let block_server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x2a"}"#,
+        );
+        let block_ctx = test_context(vec![profile(SourceId::PublicNodeRpc, &block_server.url)]);
+        assert_eq!(block_ctx.get_current_block("Ethereum").unwrap(), 42);
+        block_server.request();
+
+        let latest_server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":{"number":"0x2b","timestamp":"0x64"}}"#,
+        );
+        let latest_ctx = test_context(vec![profile(SourceId::PublicNodeRpc, &latest_server.url)]);
+        assert_eq!(
+            latest_ctx
+                .get_latest_block_and_ts(&latest_server.url)
+                .unwrap(),
+            (43, 100)
+        );
+        latest_server.request();
+
+        let call_server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x1234"}"#,
+        );
+        let call_ctx = test_context(vec![profile(SourceId::PublicNodeRpc, &call_server.url)]);
+        assert_eq!(
+            call_ctx
+                .eth_call(&call_server.url, "0xcontract", "0xdata")
+                .unwrap(),
+            Some("0x1234".into())
+        );
+        call_server.request();
+    }
+
+    #[test]
+    fn coingecko_price_uses_registered_base_url() {
+        let server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"tokenized-fund":{"usd":101.25}}"#,
+        );
+        let ctx = test_context(vec![profile(SourceId::CoinGecko, &server.url)]);
+
+        assert_eq!(
+            ctx.get_coingecko_price("tokenized-fund").unwrap(),
+            Some(101.25)
+        );
+        let request = server.request();
+        assert!(request.starts_with("GET /simple/price?"));
+        assert!(request.contains("ids=tokenized-fund"));
+    }
+
+    #[test]
+    fn log_helpers_collect_single_rpc_batch() {
+        let chunked_server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":[{"blockNumber":"0x1"}]}"#,
+        );
+        let chunked_ctx = test_context(vec![profile(SourceId::PublicNodeRpc, &chunked_server.url)]);
+        let logs = chunked_ctx
+            .get_transfer_logs_chunked("0xABC", "ethereum", 1, 2, 10)
+            .unwrap();
+        assert_eq!(logs.len(), 1);
+        chunked_server.request();
+
+        let activity_server = MockHttpServer::spawn(
+            "200 OK",
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":[{"blockNumber":"0x2"}]}"#,
+        );
+        let activity_ctx =
+            test_context(vec![profile(SourceId::PublicNodeRpc, &activity_server.url)]);
+        let logs = activity_ctx
+            .get_logs_activity(&activity_server.url, "0xabc", 1, 2, 10)
+            .unwrap();
+        assert_eq!(logs.len(), 1);
+        activity_server.request();
     }
 }
