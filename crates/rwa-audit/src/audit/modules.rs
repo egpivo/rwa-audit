@@ -524,4 +524,53 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("live"));
     }
+
+    #[test]
+    fn activity_module_rejects_frozen_mode() {
+        let ctx = AuditContext::new().unwrap();
+        let err = ActivityModule
+            .run(
+                &ctx,
+                RunMode::Frozen {
+                    snapshot_date: None,
+                },
+                &RunExtra::default(),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
+
+    #[test]
+    fn article1_module_rejects_frozen_mode() {
+        let ctx = AuditContext::new().unwrap();
+        let err = Article1Module
+            .run(
+                &ctx,
+                RunMode::Frozen {
+                    snapshot_date: Some("2026-06-12".into()),
+                },
+                &RunExtra::default(),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
+
+    #[test]
+    fn flow_tx_module_rejects_frozen_mode() {
+        let ctx = AuditContext::new().unwrap();
+        let extra = RunExtra {
+            tx_hashes: vec!["0xabc".into()],
+            ..Default::default()
+        };
+        let err = FlowTxModule
+            .run(
+                &ctx,
+                RunMode::Frozen {
+                    snapshot_date: None,
+                },
+                &extra,
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("live"));
+    }
 }

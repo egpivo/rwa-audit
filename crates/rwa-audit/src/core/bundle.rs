@@ -1077,4 +1077,45 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn path_helpers_return_expected_suffixes() {
+        let d = audit_bundle_dir("abc");
+        assert!(d.to_string_lossy().ends_with("artifacts/audits/abc"));
+
+        let data = bundle_data_dir("abc");
+        assert!(data.to_string_lossy().ends_with("data"));
+
+        let figs = bundle_figures_dir("abc");
+        assert!(figs.to_string_lossy().ends_with("figures"));
+
+        let manifest = bundle_manifest_path("abc");
+        assert!(manifest.to_string_lossy().ends_with("manifest.json"));
+    }
+
+    #[test]
+    fn bundle_data_dir_at_uses_provided_root() {
+        let root = Path::new("/tmp");
+        let p = bundle_data_dir_at("abc", root);
+        assert_eq!(p, Path::new("/tmp/artifacts/audits/abc/data"));
+    }
+
+    #[test]
+    fn list_bundle_specs_has_two_entries() {
+        assert_eq!(list_bundle_specs().len(), 2);
+    }
+
+    #[test]
+    fn resolve_claim_evidence_figures_path() {
+        let bundle_root = Path::new("/tmp/bundle");
+        let p = resolve_claim_evidence_path(bundle_root, "artifacts/figures/some_figure.png");
+        assert_eq!(p, Path::new("/tmp/bundle/figures/some_figure.png"));
+    }
+
+    #[test]
+    fn resolve_claim_evidence_data_path() {
+        let bundle_root = Path::new("/tmp/bundle");
+        let p = resolve_claim_evidence_path(bundle_root, "artifacts/data/some_data.csv");
+        assert_eq!(p, Path::new("/tmp/bundle/data/some_data.csv"));
+    }
 }

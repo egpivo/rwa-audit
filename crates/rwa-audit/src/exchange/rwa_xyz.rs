@@ -276,4 +276,214 @@ mod tests {
         );
         assert!(snapshot_for_date(&seed, "2026-06-13").is_none());
     }
+
+    #[test]
+    fn extract_next_data_parses_valid_html() {
+        let html = r#"<html><head><script id="__NEXT_DATA__" type="application/json">{"foo":"bar"}</script></head></html>"#;
+        let result = extract_next_data(html).unwrap();
+        assert_eq!(result, r#"{"foo":"bar"}"#);
+    }
+
+    #[test]
+    fn extract_next_data_fails_without_marker() {
+        let html = "<html><body>no next data here</body></html>";
+        assert!(extract_next_data(html).is_err());
+    }
+
+    #[test]
+    fn lag_snapshots_produces_entries_for_positive_values() {
+        let trailing = serde_json::json!({
+            "val_7d": 1_500_000_000.0,
+            "val_30d": 1_400_000_000.0,
+            "val_90d": 0.0
+        });
+        let snaps = lag_snapshots("2026-06-12", &trailing, "https://example.com");
+        // val_7d and val_30d are positive; val_90d = 0 is skipped
+        assert_eq!(snaps.len(), 2);
+        assert_eq!(snaps[0].confidence, "high");
+    }
+
+    #[test]
+    fn lag_snapshots_skips_zero_values() {
+        let trailing = serde_json::json!({
+            "val_7d": 0.0,
+            "val_30d": 0.0,
+            "val_90d": 0.0
+        });
+        let snaps = lag_snapshots("2026-06-12", &trailing, "https://example.com");
+        assert!(snaps.is_empty());
+    }
+
+    #[test]
+    fn lag_snapshots_invalid_date_returns_empty() {
+        let trailing = serde_json::json!({ "val_7d": 1_000_000.0 });
+        let snaps = lag_snapshots("not-a-date", &trailing, "https://example.com");
+        assert!(snaps.is_empty());
+    }
+
+    #[test]
+    fn headline_snapshot_suspect_when_val_too_low_vs_trailing() {
+        // val = 1M, trailing_7d = 2B → ratio = 0.0005 < 0.05 → suspect
+        let page = serde_json::json!({
+            "props": {
+                "pageProps": {
+                    "aggregates": [
+                        {"label": "Monthly Transfer Volume", "value": 1_000_000.0}
+                    ]
+                }
+            }
+        });
+        let snap = headline_snapshot(
+            "2026-06-12",
+            &page,
+            Some(2_000_000_000.0),
+            "https://example.com",
+        )
+        .unwrap();
+        assert_eq!(snap.confidence, "low");
+        assert_eq!(
+            snap.source_type.as_deref(),
+            Some("rwa_ssr_headline_suspect")
+        );
+    }
+
+    #[test]
+    fn headline_snapshot_normal_case() {
+        let page = serde_json::json!({
+            "props": {
+                "pageProps": {
+                    "aggregates": [
+                        {"label": "Monthly Transfer Volume", "value": 1_600_000_000.0}
+                    ]
+                }
+            }
+        });
+        let snap = headline_snapshot(
+            "2026-06-12",
+            &page,
+            Some(1_500_000_000.0),
+            "https://example.com",
+        )
+        .unwrap();
+        assert_eq!(snap.confidence, "high");
+        assert_eq!(snap.source_type.as_deref(), Some("rwa_ssr_headline"));
+    }
+
+    #[test]
+    fn headline_snapshot_returns_none_without_aggregates() {
+        let page = serde_json::json!({
+            "props": {
+                "pageProps": {}
+            }
+        });
+        assert!(headline_snapshot("2026-06-12", &page, None, "https://example.com").is_none());
+    }
+
+    #[test]
+    fn headline_snapshot_returns_none_without_matching_label() {
+        let page = serde_json::json!({
+            "props": {
+                "pageProps": {
+                    "aggregates": [
+                        {"label": "Wrong Label", "value": 1_000_000.0}
+                    ]
+                }
+            }
+        });
+        assert!(headline_snapshot("2026-06-12", &page, None, "https://example.com").is_none());
+    }
+
+    fn make_snap(date: &str, confidence: &str) -> PlatformSnapshot {
+        PlatformSnapshot {
+            date: date.into(),
+            monthly_transfer_volume_usd: 1.0e9,
+            source_url: "u".into(),
+            accessed_date: date.into(),
+            confidence: confidence.into(),
+            caveat: "c".into(),
+            source_type: None,
+            exclude_from_interpolation: None,
+        }
+    }
+
+    #[test]
+    fn merge_snapshots_higher_confidence_wins() {
+        let existing = vec![make_snap("2026-06-12", "low")];
+        let new = vec![make_snap("2026-06-12", "high")];
+        let result = merge_snapshots(&existing, &new);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].confidence, "high");
+    }
+
+    #[test]
+    fn merge_snapshots_same_confidence_keeps_existing() {
+        let existing = vec![make_snap("2026-06-12", "high")];
+        let new = vec![make_snap("2026-06-12", "high")];
+        // existing is inserted first; new has same rank → existing kept
+        let result = merge_snapshots(&existing, &new);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn merge_snapshots_adds_new_date() {
+        let existing = vec![make_snap("2026-06-11", "high")];
+        let new = vec![make_snap("2026-06-12", "high")];
+        let result = merge_snapshots(&existing, &new);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn save_and_load_seed_round_trip() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-xyz-seed-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("seed.json");
+        let seed = PlatformSeedFile {
+            metric: "monthly_transfer_volume".into(),
+            definition_url: "https://docs.rwa.xyz".into(),
+            note: "test".into(),
+            last_fetched: Some("2026-06-12".into()),
+            snapshots: vec![make_snap("2026-06-12", "high")],
+        };
+        save_seed_to(&path, &seed).unwrap();
+        let loaded = load_seed_from(&path).unwrap();
+        assert_eq!(loaded.metric, "monthly_transfer_volume");
+        assert_eq!(loaded.snapshots.len(), 1);
+        assert_eq!(loaded.snapshots[0].date, "2026-06-12");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_seed_from_missing_file_errors() {
+        let path = std::path::Path::new("/tmp/does-not-exist-rwa-xyz-seed-12345.json");
+        assert!(load_seed_from(path).is_err());
+    }
+
+    #[test]
+    fn snapshot_for_date_returns_low_confidence_non_suspect() {
+        // low confidence but NOT rwa_ssr_headline_suspect → should be included
+        let seed = PlatformSeedFile {
+            metric: "x".into(),
+            definition_url: "x".into(),
+            note: "x".into(),
+            last_fetched: None,
+            snapshots: vec![PlatformSnapshot {
+                date: "2026-06-10".into(),
+                monthly_transfer_volume_usd: 1.0e6,
+                source_url: "u".into(),
+                accessed_date: "2026-06-10".into(),
+                confidence: "low".into(),
+                caveat: "c".into(),
+                source_type: Some("rwa_ssr_trailing_30d_lag".into()),
+                exclude_from_interpolation: None,
+            }],
+        };
+        // low + non-suspect source_type → not filtered out
+        assert!(snapshot_for_date(&seed, "2026-06-10").is_some());
+    }
 }

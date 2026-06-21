@@ -330,4 +330,69 @@ mod tests {
         assert_eq!(agg.total_24h_vol_usd, 0.0);
         assert!(agg.top_pool_vol_share.is_none());
     }
+
+    use crate::sources::cache::ResponseCache;
+    use crate::sources::profile::{SourceKind, SourceProfile};
+    use crate::sources::registry::SourceRegistry;
+    use crate::sources::test_support::MockHttpServer;
+    use std::collections::HashMap;
+
+    fn context_for_gecko(base_url: &str) -> crate::sources::context::SourceContext {
+        let profile = SourceProfile {
+            id: SourceId::GeckoTerminal,
+            kind: SourceKind::Http,
+            base_url: Some(base_url.to_string()),
+            rpc_endpoints: HashMap::new(),
+            base_path: None,
+            env_keys: vec![],
+            rate_limit_ms: 0,
+            default_headers: HashMap::new(),
+        };
+        crate::sources::context::SourceContext::with_registry(SourceRegistry::from_profiles(
+            HashMap::from([(SourceId::GeckoTerminal, profile)]),
+        ))
+        .unwrap()
+        .with_cache(ResponseCache::disabled())
+    }
+
+    #[test]
+    fn pool_daily_ohlcv_parses_list() {
+        let body = r#"{"data":{"attributes":{"ohlcv_list":[[1749600000,180.5,185.0,179.0,183.0,1234.56]]}}}"#;
+        let server = MockHttpServer::spawn("200 OK", "application/json", body);
+        let ctx = context_for_gecko(&server.url);
+        let adapter = GeckoTerminalAdapter;
+        let rows = adapter
+            .pool_daily_ohlcv(&ctx, "ethereum", "0xpool", 1)
+            .unwrap();
+        server.request();
+        assert_eq!(rows.len(), 1);
+        assert!((rows[0].volume_usd - 1234.56).abs() < 0.001);
+    }
+
+    #[test]
+    fn pool_daily_ohlcv_skips_short_rows() {
+        // Row with only 4 elements (< 6) should be skipped
+        let body = r#"{"data":{"attributes":{"ohlcv_list":[[1749600000,180.5,185.0,179.0]]}}}"#;
+        let server = MockHttpServer::spawn("200 OK", "application/json", body);
+        let ctx = context_for_gecko(&server.url);
+        let adapter = GeckoTerminalAdapter;
+        let rows = adapter
+            .pool_daily_ohlcv(&ctx, "ethereum", "0xpool", 1)
+            .unwrap();
+        server.request();
+        assert_eq!(rows.len(), 0);
+    }
+
+    #[test]
+    fn solana_symbol_pool_aggregate_from_mock() {
+        let body =
+            r#"{"data":[{"attributes":{"reserve_in_usd":"5000","volume_usd":{"h24":"3000"}}}]}"#;
+        let server = MockHttpServer::spawn("200 OK", "application/json", body);
+        let ctx = context_for_gecko(&server.url);
+        let adapter = GeckoTerminalAdapter;
+        let agg = adapter.solana_symbol_pool_aggregate(&ctx, "AAPLx").unwrap();
+        server.request();
+        assert_eq!(agg.pool_count, 1);
+        assert!((agg.total_tvl_usd - 5000.0).abs() < 0.01);
+    }
 }

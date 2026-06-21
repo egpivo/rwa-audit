@@ -18,6 +18,7 @@ pub enum CliError {
     Runtime(#[from] anyhow::Error),
 }
 
+#[derive(Debug)]
 pub struct RunCommand {
     pub module: String,
     pub mode: RunMode,
@@ -27,10 +28,12 @@ pub struct RunCommand {
     pub tx_hashes: Vec<String>,
 }
 
+#[derive(Debug)]
 pub struct FreezeCommand {
     pub action: FreezeAction,
 }
 
+#[derive(Debug)]
 pub enum FreezeAction {
     List,
     Promote { audit_id: String },
@@ -458,6 +461,168 @@ mod tests {
             &parse_run_command(&mut args("run registry --promote").into_iter().skip(2)).unwrap(),
         )
         .unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn run_cli_help_succeeds() {
+        assert!(run_cli(args("help")).is_ok());
+    }
+
+    #[test]
+    fn run_cli_missing_subcommand_is_usage_error() {
+        // args("") produces ["rwa-audit", ""] — two elements; the second is the subcommand
+        // We need truly no subcommand: build the vec manually.
+        let argv = vec!["rwa-audit".to_string()];
+        let err = run_cli(argv).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_run_mode_flag_overrides_default() {
+        let mut iter = args("run registry --mode live").into_iter().skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        assert!(cmd.mode.is_live());
+    }
+
+    #[test]
+    fn parse_run_publish_date_sets_frozen_mode() {
+        let mut iter = args("run exchange --publish-date 2026-06-12")
+            .into_iter()
+            .skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        assert!(!cmd.mode.is_live());
+        assert!(matches!(
+            &cmd.mode,
+            RunMode::Frozen {
+                snapshot_date: Some(_)
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_run_assets_flag() {
+        let mut iter = args("run registry --assets config/foo.yaml")
+            .into_iter()
+            .skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        assert!(cmd.assets.is_some());
+        assert_eq!(cmd.assets.unwrap(), "config/foo.yaml");
+    }
+
+    #[test]
+    fn parse_run_unknown_flag_is_usage_error() {
+        let mut iter = args("run registry --bogus").into_iter().skip(2);
+        let err = parse_run_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_tx_hashes_on_non_flow_tx_is_error() {
+        let cmd = RunCommand {
+            module: "registry".to_string(),
+            mode: RunMode::Live,
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec!["0xabc".to_string()],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_publish_date_on_non_exchange_is_error() {
+        let cmd = RunCommand {
+            module: "registry".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: Some("2026-06-12".to_string()),
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn validate_non_exchange_frozen_mode_is_error() {
+        let mut iter = args("run flow-panel --mode frozen").into_iter().skip(2);
+        let cmd = parse_run_command(&mut iter).unwrap();
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_freeze_list_parses() {
+        let mut iter = args("freeze list").into_iter().skip(2);
+        let cmd = parse_freeze_command(&mut iter).unwrap();
+        assert!(matches!(cmd.action, FreezeAction::List));
+    }
+
+    #[test]
+    fn parse_freeze_exchange_with_flags() {
+        let mut iter = args("freeze exchange --live --refresh-rwa")
+            .into_iter()
+            .skip(2);
+        let cmd = parse_freeze_command(&mut iter).unwrap();
+        assert!(matches!(
+            cmd.action,
+            FreezeAction::Exchange {
+                live: true,
+                refresh_rwa: true
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_freeze_unknown_action_is_error() {
+        let mut iter = args("freeze bogus").into_iter().skip(2);
+        let err = parse_freeze_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_freeze_exchange_unknown_flag_is_error() {
+        let mut iter = args("freeze exchange --bogus").into_iter().skip(2);
+        let err = parse_freeze_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_freeze_promote_requires_audit_id() {
+        let mut iter = args("freeze promote").into_iter().skip(2);
+        let err = parse_freeze_command(&mut iter).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn run_cli_freeze_list_succeeds() {
+        assert!(run_cli(args("freeze list")).is_ok());
+    }
+
+    #[test]
+    fn activity_rejects_frozen_mode() {
+        let cmd = RunCommand {
+            module: "activity".to_string(),
+            mode: RunMode::Frozen {
+                snapshot_date: None,
+            },
+            assets: None,
+            refresh_rwa: false,
+            promote: false,
+            tx_hashes: vec![],
+        };
+        let err = validate_run_flags(&cmd).unwrap_err();
+        assert!(matches!(err, CliError::Usage(_)));
+    }
+
+    #[test]
+    fn parse_run_mode_flag_missing_value_is_error() {
+        let mut iter = args("run registry --mode").into_iter().skip(2);
+        let err = parse_run_command(&mut iter).unwrap_err();
         assert!(matches!(err, CliError::Usage(_)));
     }
 }
