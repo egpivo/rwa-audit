@@ -1,12 +1,13 @@
-use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use chrono::{Duration, Utc};
+use std::collections::{HashMap, HashSet};
+
+use chrono::Duration;
 use csv::ReaderBuilder;
 
-use crate::assets::activity_assets;
+use crate::assets::activity_assets_from;
 use crate::client::{parse_hex_u64, token_amount, HttpClient, ACTIVITY_CHUNK_BLOCKS};
-use crate::config::{block_time_secs, data_dir, ensure_dir, rpc_for_chain};
+use crate::config::{block_time_secs, data_dir, ensure_dir};
 use crate::models::ActivityDailyRow;
 use crate::output::write_activity_daily;
 
@@ -15,17 +16,22 @@ struct DailyBucket {
     senders: HashSet<String>,
 }
 
-pub fn collect_activity_timeseries() -> anyhow::Result<()> {
+/// Collect 30-day activity timeseries and return the latest chain-derived observation date.
+///
+/// The returned date comes from block timestamps, not the wall clock, so it accurately
+/// reflects the actual on-chain observation window end across all collected assets.
+pub(crate) fn collect_activity_timeseries(assets_path: &Path) -> anyhow::Result<String> {
     let output_path = data_dir().join("rwa_activity_daily_30d.csv");
     ensure_dir(output_path.parent().unwrap())?;
 
     let implied_price = load_implied_prices(&data_dir().join("rwa_transfer_metrics.csv"))?;
-    let client = HttpClient::new()?;
+    let client = HttpClient::for_live()?;
     let mut rows = Vec::new();
+    let mut max_observation_date: Option<chrono::NaiveDate> = None;
 
-    for asset in activity_assets() {
-        let rpc = rpc_for_chain(&asset.chain);
-        let (latest_block, latest_ts) = client.get_latest_block_and_ts(rpc)?;
+    for asset in activity_assets_from(assets_path)? {
+        let rpc = client.context().rpc_for_chain(&asset.chain)?;
+        let (latest_block, latest_ts) = client.get_latest_block_and_ts(&rpc)?;
         let sec_per_block = block_time_secs(&asset.chain);
         let back_blocks = (30 * 86400) / sec_per_block;
         let from_block = latest_block.saturating_sub(back_blocks);
@@ -35,7 +41,7 @@ pub fn collect_activity_timeseries() -> anyhow::Result<()> {
             asset.symbol
         );
         let logs = client.get_logs_activity(
-            rpc,
+            &rpc,
             &asset.contract,
             from_block,
             latest_block,
@@ -66,7 +72,8 @@ pub fn collect_activity_timeseries() -> anyhow::Result<()> {
             );
 
             let data = lg.get("data").and_then(|d| d.as_str()).unwrap_or("0x0");
-            let raw = u128::from_str_radix(data.strip_prefix("0x").unwrap_or(data), 16).unwrap_or(0);
+            let raw =
+                u128::from_str_radix(data.strip_prefix("0x").unwrap_or(data), 16).unwrap_or(0);
             let bucket = daily.entry(day).or_insert_with(|| DailyBucket {
                 volume_tokens: 0.0,
                 senders: HashSet::new(),
@@ -77,7 +84,15 @@ pub fn collect_activity_timeseries() -> anyhow::Result<()> {
 
         let end_date = chrono::DateTime::from_timestamp(latest_ts, 0)
             .map(|dt| dt.date_naive())
-            .unwrap_or_else(|| Utc::now().date_naive());
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "invalid block timestamp {latest_ts} from {} RPC; \
+                     cannot derive chain observation date",
+                    asset.chain
+                )
+            })?;
+        max_observation_date =
+            Some(max_observation_date.map_or(end_date, |prev| prev.max(end_date)));
         let start_date = end_date - Duration::days(29);
 
         for i in 0..30 {
@@ -131,7 +146,15 @@ pub fn collect_activity_timeseries() -> anyhow::Result<()> {
 
     write_activity_daily(&output_path, &rows)?;
     println!("Wrote {}", output_path.display());
-    Ok(())
+    let observation_date = max_observation_date
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no assets collected from {}; cannot determine chain observation date",
+                assets_path.display()
+            )
+        })?
+        .to_string();
+    Ok(observation_date)
 }
 
 pub(crate) fn load_implied_prices(path: &Path) -> anyhow::Result<HashMap<String, f64>> {
@@ -166,7 +189,8 @@ mod tests {
 
     #[test]
     fn load_implied_prices_missing_file_returns_empty() {
-        let prices = load_implied_prices(Path::new("/nonexistent/rwa_transfer_metrics.csv")).unwrap();
+        let prices =
+            load_implied_prices(Path::new("/nonexistent/rwa_transfer_metrics.csv")).unwrap();
         assert!(prices.is_empty());
     }
 
@@ -193,6 +217,75 @@ mod tests {
         assert_eq!(prices.len(), 1);
         assert!((prices["USDY"] - 1.05).abs() < f64::EPSILON);
 
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_implied_prices_skips_zero_token_volume() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity2-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             Ondo USDY,USDY,2026-05,0,0,0,0.0,100.0\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(
+            prices.is_empty(),
+            "zero-token rows must not produce a price"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_implied_prices_skips_wrong_month() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity3-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             Ondo USDY,USDY,2026-04,5,2,2,500.0,525.0\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(prices.is_empty(), "only 2026-05 rows should be loaded");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_implied_prices_skips_na_usd() {
+        let dir = std::env::temp_dir().join(format!(
+            "rwa-audit-activity4-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("transfer.csv");
+        std::fs::write(
+            &path,
+            "asset_name,symbol,year_month,transfer_count,unique_senders,unique_receivers,total_volume_tokens,total_volume_usd_approx\n\
+             PAXG,PAXG,2026-05,3,2,2,1.0,N/A\n",
+        )
+        .unwrap();
+        let prices = load_implied_prices(&path).unwrap();
+        assert!(prices.is_empty(), "N/A USD rows must be skipped");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -108,4 +108,3 @@ The Etherscan V1 API (api.etherscan.io/api) returned "NOTOK: You are using a dep
 - Issued under Swiss DLT law; secondary transfers unrestricted.
 - Minting/redemption only through Backed platform with KYC.
 - Low trading volumes; primarily held by institutional DeFi protocols.
-

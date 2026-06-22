@@ -1,8 +1,13 @@
 {
-  "article": "Part III — Where RWA Exchange Risk Actually Sits",
-  "post_url": "https://egpivo.github.io/2026/06/21/where-rwa-exchange-risk-actually-sits.html",
-  "frozen_at": "2026-06-17T06:55:42.914884+00:00",
+  "audit_id": "article3-xstocks-2026-06-12",
+  "version": "1",
+  "title": "Exchange — Where RWA Exchange Risk Actually Sits",
+  "reference_url": "https://egpivo.github.io/2026/06/21/where-rwa-exchange-risk-actually-sits.html",
+  "frozen_at": "2026-06-20T01:31:02.802438+00:00",
   "panel_date": "2026-06-12",
+  "methods": [
+    "exchange_surface"
+  ],
   "claims": [
     {
       "id": "platform_transfer_apr_2026",
@@ -58,7 +63,6 @@
       "id": "jupiter_aaplx_100k_impact",
       "label": "Jupiter AAPLx @ $100k USDC price impact",
       "value_display": "68%",
-      "value_usd": null,
       "as_of": "2026-06-12",
       "evidence_file": "artifacts/data/jupiter_quote_aaplx_100k.json",
       "source_url": "https://lite-api.jup.ag/swap/v1/quote?inputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp&amount=100000000000&slippageBps=100",

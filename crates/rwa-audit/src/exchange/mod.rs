@@ -5,4 +5,4 @@ pub mod output;
 pub mod reference;
 pub mod rwa_xyz;
 
-pub use freeze::{freeze_exchange_evidence, ExchangeFreezeOptions};
+pub(crate) use freeze::{freeze_exchange_evidence, ExchangeFreezeOptions};

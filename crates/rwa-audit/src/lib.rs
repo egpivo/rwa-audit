@@ -1,17 +1,23 @@
-pub mod exchange;
-pub mod flow;
 pub mod activity;
+pub mod asset_config;
 pub mod assets;
+pub mod audit;
 pub mod client;
 pub mod collect;
 pub mod config;
+pub mod core;
+pub mod evm;
+pub mod exchange;
+pub mod flow;
 pub mod metrics;
 pub mod models;
 pub mod output;
+pub mod sources;
+pub mod tools;
 
-pub use activity::collect_activity_timeseries;
-pub use collect::collect_all;
-pub use flow::panel::collect_flow_panel;
-pub use flow::paraswap::collect_paraswap_quotes;
-pub use flow::tx_recon::reconstruct_case_studies;
-pub use exchange::{freeze_exchange_evidence, ExchangeFreezeOptions};
+pub use audit::{list_run_targets, run_module, AuditContext, EvidenceBundle, RunMode};
+pub use core::{
+    promote_audit_bundle, promote_publish_bundle_at, AuditBundleSpec, AuditManifest, AuditMethod,
+    PublishBundle,
+};
+pub use sources::{SourceContext, SourceId, SourceRegistry};

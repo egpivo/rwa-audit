@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
-"""Fig. 4 — xStocks surface snapshot (reads frozen Part III panel)."""
+"""Fig. 4 — xStocks surface snapshot (reads frozen exchange audit panel)."""
 
 import csv
 import json
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-DATA = ROOT / "artifacts" / "data"
+BUNDLE_ID = os.environ.get("RWA_AUDIT_BUNDLE", "article3-xstocks-2026-06-12")
+BUNDLE_ROOT = ROOT / "artifacts" / "audits" / BUNDLE_ID
+LEGACY_DATA = ROOT / "artifacts" / "data"
+
+if (BUNDLE_ROOT / "data" / "depth_vs_volume_panel_publish.csv").exists():
+    DATA = BUNDLE_ROOT / "data"
+    OUT = BUNDLE_ROOT / "figures" / "xstocks_surface_snapshot.png"
+else:
+    DATA = LEGACY_DATA
+    OUT = ROOT / "artifacts" / "figures" / "xstocks_surface_snapshot.png"
+
 PANEL = DATA / "depth_vs_volume_panel_publish.csv"
-MANIFEST = DATA / "manifest.json"
-OUT = ROOT / "artifacts" / "figures" / "xstocks_surface_snapshot.png"
+MANIFEST = BUNDLE_ROOT / "manifest.json"
+if not MANIFEST.exists():
+    MANIFEST = DATA / "manifest.json"
 
 BG = "#F7F6F3"
 TEXT = "#2B2B2B"

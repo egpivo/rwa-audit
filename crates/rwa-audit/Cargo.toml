@@ -34,6 +34,14 @@ path = "src/bin/flow_tx.rs"
 name = "rwa-exchange-freeze"
 path = "src/bin/exchange_freeze.rs"
 
+[[bin]]
+name = "rwa-freeze"
+path = "src/bin/freeze.rs"
+
+[[bin]]
+name = "rwa-audit"
+path = "src/bin/rwa-audit.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -41,3 +49,7 @@ csv = "1"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+thiserror = "2"
+fs2 = "0.4"

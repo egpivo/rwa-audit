@@ -5,10 +5,9 @@ use crate::config::{ensure_dir, ZERO_ADDRESS};
 use crate::flow::config::flow_data_dir;
 use crate::flow::output::{write_tx_reconstructions, TxReconRow};
 
-const SWAP_V3_TOPIC: &str =
-    "0xc42079f94a6350d65e623abf017871ec234316d7fcc48fd4af35ff82926fdc145";
+const SWAP_V3_TOPIC: &str = "0xc42079f94a6350d65e623abf017871ec234316d7fcc48fd4af35ff82926fdc145";
 
-pub fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
+pub(crate) fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
     let out_dir = flow_data_dir();
     ensure_dir(&out_dir)?;
 
@@ -28,14 +27,18 @@ pub fn reconstruct_case_studies(extra_hashes: &[String]) -> Result<()> {
     }
 
     write_tx_reconstructions(&out_dir, &rows)?;
-    println!("Wrote {}", out_dir.join("tx_reconstructions.json").display());
+    println!(
+        "Wrote {}",
+        out_dir.join("tx_reconstructions.json").display()
+    );
     Ok(())
 }
 
 fn reconstruct_tx(client: &HttpClient, hash: &str, label: &str) -> Result<Option<TxReconRow>> {
+    let eth_rpc = client.context().rpc_for_chain("Ethereum")?;
     let r = client
         .rpc_call(
-            crate::config::ETH_RPC,
+            &eth_rpc,
             "eth_getTransactionReceipt",
             serde_json::json!([hash]),
             3,
@@ -112,9 +115,7 @@ fn reconstruct_tx(client: &HttpClient, hash: &str, label: &str) -> Result<Option
                     .and_then(|h| u128::from_str_radix(h.strip_prefix("0x").unwrap_or(h), 16).ok())
                     .unwrap_or(0);
                 if log_summaries.len() < 20 {
-                    log_summaries.push(format!(
-                        "Transfer {contract}: {from} → {to} value={value}"
-                    ));
+                    log_summaries.push(format!("Transfer {contract}: {from} → {to} value={value}"));
                 }
             }
         } else if topics[0].eq_ignore_ascii_case(SWAP_V3_TOPIC) {
@@ -142,7 +143,10 @@ fn reconstruct_tx(client: &HttpClient, hash: &str, label: &str) -> Result<Option
 }
 
 fn topic_address(topic: &str) -> String {
-    format!("0x{}", &topic[topic.len().saturating_sub(40)..].to_lowercase())
+    format!(
+        "0x{}",
+        &topic[topic.len().saturating_sub(40)..].to_lowercase()
+    )
 }
 
 #[cfg(test)]
@@ -153,5 +157,24 @@ mod tests {
     fn topic_address_extracts_last_20_bytes() {
         let t = "0x000000000000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         assert!(topic_address(t).ends_with("deadbeef"));
+    }
+
+    #[test]
+    fn topic_address_short_string_does_not_panic() {
+        let result = topic_address("0xabcd");
+        assert!(result.starts_with("0x"));
+    }
+
+    #[test]
+    fn topic_address_empty_does_not_panic() {
+        let result = topic_address("");
+        assert_eq!(result, "0x");
+    }
+
+    #[test]
+    fn topic_address_lowercase() {
+        let t = "0x000000000000000000000000ABCDEF1234567890ABCDEF1234567890ABCDEF12";
+        let addr = topic_address(t);
+        assert_eq!(addr, addr.to_lowercase());
     }
 }

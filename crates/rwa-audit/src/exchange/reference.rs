@@ -13,6 +13,7 @@ use crate::flow::config::{
 };
 use crate::flow::gecko::SymbolPoolAggregate;
 use crate::flow::jupiter::JupiterQuoteEvidence;
+use crate::sources::{Provenance, SourceId};
 
 const PUBLISH_JUPITER_IMPACT_PCT: f64 = 68.2;
 
@@ -28,7 +29,10 @@ fn parse_metric_value(raw: &str) -> Result<f64> {
 fn panel_rows_for_date(path: &Path, date: &str) -> Result<Vec<csv::StringRecord>> {
     let mut rdr = ReaderBuilder::new().from_path(path)?;
     let headers = rdr.headers()?.clone();
-    let date_idx = headers.iter().position(|h| h == "date").context("date column")?;
+    let date_idx = headers
+        .iter()
+        .position(|h| h == "date")
+        .context("date column")?;
     let mut out = Vec::new();
     for rec in rdr.records() {
         let rec = rec?;
@@ -58,9 +62,8 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
     let mut tvl = None;
     let mut vol = None;
     let mut pool_count = None;
-    let mut source_url = format!(
-        "https://api.geckoterminal.com/api/v2/search/pools?query={symbol}&network=solana"
-    );
+    let mut source_url =
+        format!("https://api.geckoterminal.com/api/v2/search/pools?query={symbol}&network=solana");
 
     for rec in &rows {
         if rec.get(idx("asset_or_example")?).unwrap_or("") != symbol {
@@ -71,7 +74,10 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
         }
         let metric = rec.get(idx("metric_type")?).unwrap_or("");
         let value = parse_metric_value(rec.get(idx("metric_value")?).unwrap_or(""))?;
-        source_url = rec.get(idx("source_url")?).unwrap_or(&source_url).to_string();
+        source_url = rec
+            .get(idx("source_url")?)
+            .unwrap_or(&source_url)
+            .to_string();
         if let Some(caveat) = rec.get(idx("caveat")?) {
             if let Some(n) = caveat.split("n=").nth(1).and_then(|s| s.split(';').next()) {
                 pool_count = n.trim().parse().ok();
@@ -90,7 +96,8 @@ pub fn gecko_aggregate_from_reference(symbol: &str) -> Result<SymbolPoolAggregat
         total_tvl_usd: tvl.with_context(|| format!("{symbol} TVL in reference panel"))?,
         total_24h_vol_usd: vol.with_context(|| format!("{symbol} vol in reference panel"))?,
         top_pool_vol_share: None,
-        source_url,
+        source_url: source_url.clone(),
+        provenance: Some(Provenance::new(SourceId::GeckoTerminal, source_url, false)),
     })
 }
 
@@ -98,7 +105,16 @@ pub fn jupiter_quote_from_publish_fixture() -> Result<JupiterQuoteEvidence> {
     let fixture = jupiter_publish_fixture_path();
     if fixture.is_file() {
         let text = fs::read_to_string(&fixture)?;
-        return serde_json::from_str(&text).context("parse jupiter publish fixture");
+        let mut q: JupiterQuoteEvidence =
+            serde_json::from_str(&text).context("parse jupiter publish fixture")?;
+        if q.provenance.is_none() {
+            q.provenance = Some(Provenance::new(
+                SourceId::Jupiter,
+                q.source_url.clone(),
+                false,
+            ));
+        }
+        return Ok(q);
     }
 
     let input_amount_raw = JUPITER_QUOTE_USD * 1_000_000;
@@ -121,7 +137,8 @@ pub fn jupiter_quote_from_publish_fixture() -> Result<JupiterQuoteEvidence> {
             "Raydium CLMM".into(),
             "Byreal".into(),
         ],
-        source_url: url,
+        source_url: url.clone(),
+        provenance: Some(Provenance::new(SourceId::Jupiter, url, false)),
         raw_response: json!({
             "note": "Publish fixture from jupiter_xstocks_verification_memo (2026-06-14 quote pass)",
             "priceImpactPct": "0.682",
@@ -149,5 +166,38 @@ mod tests {
         assert!((aaplx.total_24h_vol_usd - 34_771.14).abs() < 1.0);
         let spyx = gecko_aggregate_from_reference("SPYx").unwrap();
         assert!((spyx.total_24h_vol_usd - 7_102_758.23).abs() < 1.0);
+    }
+
+    #[test]
+    fn parse_metric_value_dollar_with_commas() {
+        let v = parse_metric_value("$1,234.56").unwrap();
+        assert!((v - 1234.56).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_metric_value_plain_number() {
+        let v = parse_metric_value("  42.5  ").unwrap();
+        assert!((v - 42.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_metric_value_not_collected_errors() {
+        assert!(parse_metric_value("not_collected").is_err());
+        assert!(parse_metric_value("NOT_COLLECTED").is_err());
+    }
+
+    #[test]
+    fn parse_metric_value_garbage_errors() {
+        assert!(parse_metric_value("n/a").is_err());
+    }
+
+    #[test]
+    fn jupiter_quote_from_publish_fixture_fallback() {
+        let q = jupiter_quote_from_publish_fixture().unwrap();
+        assert_eq!(q.input_symbol, "USDC");
+        assert_eq!(q.output_symbol, "AAPLx");
+        assert!(q.price_impact_pct.is_some());
+        assert!(!q.route_labels.is_empty());
+        assert!(q.provenance.is_some());
     }
 }

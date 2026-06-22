@@ -1,8 +1,6 @@
 //! Integration tests for CSV pipeline outputs.
 
-use rwa_audit::models::{
-    ActivityDailyRow, HolderRow, MintBurnRow, RegistryRow, TransferRow,
-};
+use rwa_audit::models::{ActivityDailyRow, HolderRow, MintBurnRow, RegistryRow, TransferRow};
 use rwa_audit::output::{
     write_activity_daily, write_holder_metrics, write_mint_burn_metrics, write_quality_notes,
     write_registry, write_transfer_metrics,

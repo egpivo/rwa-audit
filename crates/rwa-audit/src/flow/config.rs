@@ -74,3 +74,19 @@ pub fn weekly_checkpoints() -> Vec<NaiveDate> {
 pub fn flow_data_dir() -> std::path::PathBuf {
     crate::config::data_dir().join("flow")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_dates_and_checkpoints_cover_full_window() {
+        let start = panel_start_date();
+        let end = panel_end_date();
+        let checkpoints = weekly_checkpoints();
+        assert_eq!(checkpoints.first(), Some(&start));
+        assert_eq!(checkpoints.last(), Some(&end));
+        assert!(checkpoints.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(flow_data_dir().ends_with("data/flow"));
+    }
+}

@@ -1,16 +1,18 @@
+use std::path::Path;
+
 use chrono::Utc;
 
-use crate::assets::{detect_permissioning_from_known, registry_assets};
+use crate::assets::{detect_permissioning_from_known, registry_assets_from};
 use crate::client::{decode_uint256, default_fallback_block, HttpClient};
 use crate::config::{
-    block_time_secs, data_dir, ensure_dir, rpc_for_chain, CHUNK_BLOCKS, MONTHS_HISTORY,
-    TOTAL_SUPPLY_SEL,
+    block_time_secs, data_dir, ensure_dir, CHUNK_BLOCKS, MONTHS_HISTORY, TOTAL_SUPPLY_SEL,
 };
 use crate::metrics::compute_monthly_metrics;
-use crate::models::{
-    HolderRow, MintBurnRow, QualityNote, RegistryRow, TransferRow,
+use crate::models::{HolderRow, MintBurnRow, QualityNote, RegistryRow, TransferRow};
+use crate::output::{
+    write_holder_metrics, write_mint_burn_metrics, write_quality_notes, write_registry,
+    write_transfer_metrics,
 };
-use crate::output::{write_holder_metrics, write_mint_burn_metrics, write_quality_notes, write_registry, write_transfer_metrics};
 
 pub(crate) fn total_supply_tokens_from_raw(raw: Option<u128>, decimals: u32) -> Option<f64> {
     raw.map(|r| r as f64 / 10f64.powi(decimals as i32))
@@ -56,18 +58,19 @@ pub(crate) fn round_metric(value: f64) -> f64 {
     (value * 10000.0).round() / 10000.0
 }
 
-pub fn collect_all() -> anyhow::Result<()> {
+pub(crate) fn collect_all(assets_path: &Path) -> anyhow::Result<()> {
     let output_dir = data_dir();
     ensure_dir(&output_dir)?;
 
-    let client = HttpClient::new()?;
+    let client = HttpClient::for_live()?;
+    let assets = registry_assets_from(assets_path)?;
     let mut registry_rows = Vec::new();
     let mut transfer_rows = Vec::new();
     let mut holder_rows = Vec::new();
     let mut mint_burn_rows = Vec::new();
     let mut quality_notes = Vec::new();
 
-    for asset in registry_assets() {
+    for asset in assets {
         let name = asset.asset_name.clone();
         let symbol = asset.symbol.clone();
         let chain = asset.chain.clone();
@@ -89,7 +92,7 @@ pub fn collect_all() -> anyhow::Result<()> {
             vec![notes_base.clone()]
         };
 
-        let rpc_url = rpc_for_chain(&chain);
+        let rpc_url = client.context().rpc_for_chain(&chain)?;
         let block_time_sec = block_time_secs(&chain);
 
         let mut current_block = client.get_current_block(&chain)?;
@@ -100,7 +103,7 @@ pub fn collect_all() -> anyhow::Result<()> {
         }
 
         println!("  Fetching total supply via eth_call...");
-        let ts_raw = client.eth_call(rpc_url, &contract, TOTAL_SUPPLY_SEL)?;
+        let ts_raw = client.eth_call(&rpc_url, &contract, TOTAL_SUPPLY_SEL)?;
         let total_supply_raw = decode_uint256(ts_raw.as_deref());
 
         let mut total_supply_tokens = total_supply_tokens_from_raw(total_supply_raw, decimals);
@@ -146,13 +149,18 @@ pub fn collect_all() -> anyhow::Result<()> {
                 client.get_ethplorer_top_holders(&contract, 10)?,
             )
         } else {
-            data_issues.push(format!("Ethplorer does not support {chain}; holder data unavailable."));
+            data_issues.push(format!(
+                "Ethplorer does not support {chain}; holder data unavailable."
+            ));
             (serde_json::json!({}), Vec::new())
         };
 
         let mut holder_count = "N/A".to_string();
         if let Some(hc) = ethplorer_info.get("holdersCount") {
-            if let Some(n) = hc.as_u64().or_else(|| hc.as_str().and_then(|s| s.parse().ok())) {
+            if let Some(n) = hc
+                .as_u64()
+                .or_else(|| hc.as_str().and_then(|s| s.parse().ok()))
+            {
                 holder_count = n.to_string();
             } else {
                 data_issues.push("holdersCount parse error from Ethplorer.".into());
@@ -293,7 +301,9 @@ mod tests {
 
     #[test]
     fn total_supply_tokens_from_raw_scales_decimals() {
-        assert!((total_supply_tokens_from_raw(Some(1_000_000), 6).unwrap() - 1.0).abs() < f64::EPSILON);
+        assert!(
+            (total_supply_tokens_from_raw(Some(1_000_000), 6).unwrap() - 1.0).abs() < f64::EPSILON
+        );
         assert!(total_supply_tokens_from_raw(None, 18).is_none());
     }
 
@@ -332,5 +342,40 @@ mod tests {
     #[test]
     fn round_metric_four_decimal_places() {
         assert!((round_metric(1.234567) - 1.2346).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn resolve_price_usd_both_none_returns_none() {
+        let (price, note) = resolve_price_usd(None, None);
+        assert!(price.is_none());
+        assert!(note.is_none());
+    }
+
+    #[test]
+    fn holder_concentration_empty_slice_returns_na() {
+        let (top10, top1) = holder_concentration(&[]);
+        assert_eq!(top10, "N/A");
+        assert_eq!(top1, "N/A");
+    }
+
+    #[test]
+    fn holder_concentration_ignores_entries_without_share_key() {
+        use serde_json::json;
+        let holders = vec![json!({"address": "0xabc"}), json!({"share": 30.0})];
+        let (top10, top1) = holder_concentration(&holders);
+        assert_eq!(top10, "30.00");
+        assert_eq!(top1, "30.00");
+    }
+
+    #[test]
+    fn total_supply_tokens_from_raw_zero_decimals() {
+        let t = total_supply_tokens_from_raw(Some(1_000_000), 0).unwrap();
+        assert!((t - 1_000_000.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn history_from_block_saturates_at_zero() {
+        let from = history_from_block(10, 12, 100);
+        assert_eq!(from, 0);
     }
 }
